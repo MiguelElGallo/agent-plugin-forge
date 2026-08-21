@@ -1,0 +1,20 @@
+{
+  "name": "agent-plugin-forge",
+  "interface": {
+    "displayName": "Agent Plugin Forge"
+  },
+  "plugins": [
+    {
+      "name": "agent-plugin-forge",
+      "source": {
+        "source": "local",
+        "path": "./compat/codex/plugins/agent-plugin-forge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
