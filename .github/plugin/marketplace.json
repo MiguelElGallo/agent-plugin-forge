@@ -1,0 +1,19 @@
+{
+  "name": "agent-plugin-forge",
+  "owner": {
+    "name": "MiguelElGallo",
+    "email": "miguel.zurcher@gmail.com"
+  },
+  "metadata": {
+    "description": "Reviewed Agent Skills packaged for the Agent Plugins 1.0 standard.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "agent-plugin-forge",
+      "description": "Import, review, package, and validate Agent Skills as portable Agent Plugins 1.0 packages.",
+      "version": "0.1.0",
+      "source": "./plugins/agent-plugin-forge"
+    }
+  ]
+}

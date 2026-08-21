@@ -1,0 +1,33 @@
+{
+  "name": "agent-plugin-forge",
+  "version": "0.1.0",
+  "description": "Import, review, package, and validate Agent Skills as portable Agent Plugins 1.0 packages.",
+  "author": {
+    "name": "MiguelElGallo",
+    "url": "https://github.com/MiguelElGallo"
+  },
+  "homepage": "https://miguelelgallo.github.io/agent-plugin-forge/",
+  "repository": "https://github.com/MiguelElGallo/agent-plugin-forge",
+  "license": "MIT",
+  "keywords": [
+    "agent-plugins",
+    "agent-skills",
+    "packaging",
+    "marketplace"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Plugin Forge",
+    "shortDescription": "Import, review, package, and validate Agent Skills as portable Agent Plugins 1.0 packages.",
+    "longDescription": "Import, review, package, and validate Agent Skills as portable Agent Plugins 1.0 packages.",
+    "developerName": "MiguelElGallo",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Instructions"
+    ],
+    "defaultPrompt": [
+      "Use Agent Plugin Forge for this task."
+    ],
+    "websiteURL": "https://miguelelgallo.github.io/agent-plugin-forge/"
+  }
+}

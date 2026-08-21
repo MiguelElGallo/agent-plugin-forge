@@ -1,0 +1,19 @@
+{
+  "marketplace": {
+    "name": "agent-plugin-forge",
+    "displayName": "Agent Plugin Forge",
+    "owner": {
+      "name": "MiguelElGallo",
+      "email": "miguel.zurcher@gmail.com"
+    },
+    "description": "Reviewed Agent Skills packaged for the Agent Plugins 1.0 standard.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "agent-plugin-forge",
+      "category": "Developer Tools",
+      "codexCompatibility": true
+    }
+  ]
+}

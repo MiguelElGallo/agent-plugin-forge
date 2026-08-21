@@ -1,0 +1,65 @@
+[project]
+site_name = "Agent Plugin Forge"
+site_description = "Package Agent Skills as reviewed Agent Plugins 1.0 distributions."
+site_author = "MiguelElGallo"
+site_url = "https://miguelelgallo.github.io/agent-plugin-forge/"
+repo_url = "https://github.com/MiguelElGallo/agent-plugin-forge"
+repo_name = "MiguelElGallo/agent-plugin-forge"
+copyright = "Copyright &copy; 2026 MiguelElGallo"
+
+nav = [
+  { "Start" = "index.md" },
+  { "Tutorial" = [
+    { "Package your first skill" = "tutorials/first-skill.md" },
+  ] },
+  { "How-to" = [
+    { "Import an existing skill" = "how-to/import-skill.md" },
+    { "Create a skill" = "how-to/create-skill.md" },
+    { "Add to a bundle" = "how-to/bundle-skill.md" },
+    { "Open and merge a PR" = "how-to/pull-request.md" },
+  ] },
+  { "Reference" = [
+    { "CLI" = "reference/cli.md" },
+    { "Repository layout" = "reference/layout.md" },
+    { "Metadata and provenance" = "reference/metadata.md" },
+  ] },
+  { "Explanation" = [
+    { "Architecture" = "explanation/architecture.md" },
+    { "Trust model" = "explanation/trust-model.md" },
+  ] },
+  { "Maintainers" = [
+    { "Validation and release" = "maintainers/validation.md" },
+  ] },
+]
+
+[project.theme]
+language = "en"
+variant = "classic"
+features = [
+  "content.action.edit",
+  "content.action.view",
+  "content.code.copy",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "search.highlight",
+]
+
+[project.theme.icon]
+logo = "lucide/anvil"
+repo = "fontawesome/brands/github"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "deep-purple"
+accent = "amber"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "deep-purple"
+accent = "amber"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
