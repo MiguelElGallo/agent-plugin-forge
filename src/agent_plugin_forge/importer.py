@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import tempfile
+from contextlib import suppress
 from datetime import date
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .common import (
     PLUGIN_SCHEMA,
@@ -25,6 +28,70 @@ from .filesystem import (
 )
 from .models import ImportPlan, ImportRequest
 from .sources import SkillSource, resolve_skill_source
+
+
+def _manifest_repository_url(origin: str, *, repo: Path) -> str:
+    if not origin:
+        raise ForgeError("Forge origin is empty")
+    if any(ord(character) < 32 or ord(character) == 127 for character in origin):
+        raise ForgeError("Forge origin must not contain control characters")
+    local = Path(origin).expanduser()
+    if local.is_absolute():
+        return local.resolve().as_uri()
+
+    if "://" not in origin:
+        if "::" in origin:
+            raise ForgeError("Git remote-helper origins are not supported")
+        scp = re.fullmatch(r"(?:(?P<user>[^@/:]+)@)?(?P<host>[^/:]+):(?P<path>.+)", origin)
+        if scp:
+            if "?" in origin or "#" in origin:
+                raise ForgeError("Forge origin must not include a query or fragment")
+            user = f"{scp.group('user')}@" if scp.group("user") else ""
+            path = scp.group("path").lstrip("/")
+            return f"ssh://{user}{scp.group('host')}/{path}"
+        return (repo / local).resolve().as_uri()
+
+    parsed = urlsplit(origin)
+    if parsed.scheme == "https":
+        if parsed.username is not None or parsed.password is not None:
+            raise ForgeError("Forge origin URL must not embed credentials")
+        if parsed.query or parsed.fragment:
+            raise ForgeError("Forge origin URL must not include a query or fragment")
+        if not parsed.hostname:
+            raise ForgeError("Forge HTTPS origin must include a host")
+        return origin
+    if parsed.scheme == "ssh":
+        if parsed.password is not None:
+            raise ForgeError("Forge origin URL must not embed credentials")
+        if parsed.query or parsed.fragment:
+            raise ForgeError("Forge origin URL must not include a query or fragment")
+        if not parsed.hostname:
+            raise ForgeError("Forge SSH origin must include a host")
+        return origin
+    if parsed.scheme == "file":
+        if parsed.username is not None or parsed.password is not None:
+            raise ForgeError("Forge origin URL must not embed credentials")
+        if parsed.query or parsed.fragment:
+            raise ForgeError("Forge origin URL must not include a query or fragment")
+        return origin
+    if parsed.scheme:
+        raise ForgeError("Forge origin must use HTTPS, SSH, scp-style SSH, or a local path")
+    raise ForgeError("Forge origin is empty")
+
+
+def _forge_repository_url(repo: Path) -> str:
+    if not (repo / ".git").exists():
+        raise ForgeError("Forge checkout must be a Git worktree with an origin remote")
+    result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode or not result.stdout.strip():
+        raise ForgeError("Forge checkout must have an origin remote")
+    return _manifest_repository_url(result.stdout.strip(), repo=repo)
 
 
 def _catalog_entry(catalog: dict[str, Any], plugin: str) -> dict[str, Any] | None:
@@ -118,7 +185,9 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
             plugin_root / "provenance" / f"{skill}.json",
             label="Provenance destination",
         )
-    catalog = load_json(repo / "catalog" / "plugins.json")
+    catalog_path = repo / "catalog" / "plugins.json"
+    catalog = load_json(catalog_path)
+    catalog_sha256 = hashlib.sha256(catalog_path.read_bytes()).hexdigest()
     _reject_duplicate_skill_destination(repo, catalog, request.plugin, skill)
     entry = _catalog_entry(catalog, request.plugin)
     target_state = _target_state(plugin_root, entry)
@@ -152,6 +221,7 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
     file_modes = source.modes()
     content_sha256 = source.content_sha256()
     license_sha256 = hashlib.sha256(request.license_file.read_bytes()).hexdigest()
+    repository_url = _forge_repository_url(repo)
     plan_payload = {
         "plugin": request.plugin,
         "skill": skill,
@@ -172,6 +242,8 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         "contentSha256": content_sha256,
         "fileModes": file_modes,
         "targetState": target_state,
+        "repositoryUrl": repository_url,
+        "catalogSha256": catalog_sha256,
     }
     plan_sha256 = hashlib.sha256(json_bytes(plan_payload)).hexdigest()
     return ImportPlan(
@@ -179,6 +251,8 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         skill=skill,
         source_kind=source.kind,
         destination=destination,
+        repository_url=repository_url,
+        catalog_sha256=catalog_sha256,
         creates_plugin=creates_plugin,
         file_count=len(hashes),
         content_sha256=content_sha256,
@@ -241,8 +315,12 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         raise ForgeError("--expected-sha256 must match the reviewed full-plan hash")
     _enforce_branch(repo, plan.plugin, plan.skill)
     plugin_root = contained_child(repo / "plugins", request.plugin, kind="plugin")
+    plugins_root = plugin_root.parent
+    plugins_root_existed = plugins_root.exists()
     catalog_path = repo / "catalog" / "plugins.json"
     catalog_before = catalog_path.read_bytes()
+    if hashlib.sha256(catalog_before).hexdigest() != plan.catalog_sha256:
+        raise ForgeError("Catalog changed after the reviewed plan")
     catalog = load_json(catalog_path)
 
     with tempfile.TemporaryDirectory(prefix=".forge-import-", dir=repo) as temporary:
@@ -256,7 +334,7 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
                 "version": request.version,
                 "description": request.description,
                 "author": {"name": request.author},
-                "repository": f"https://github.com/MiguelElGallo/{repo.name}",
+                "repository": plan.repository_url,
                 "license": request.license_id,
                 "keywords": ["agent-plugin", "agent-skill"],
             }
@@ -308,6 +386,7 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         backup = temporary_root / "backup"
         replaced_existing = plugin_root.exists()
         try:
+            plugins_root.mkdir(parents=True, exist_ok=True)
             if replaced_existing:
                 os.replace(plugin_root, backup)
             os.replace(staged_plugin, plugin_root)
@@ -318,6 +397,9 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
             if replaced_existing and backup.exists():
                 os.replace(backup, plugin_root)
             catalog_path.write_bytes(catalog_before)
+            if not plugins_root_existed:
+                with suppress(OSError):
+                    plugins_root.rmdir()
             raise
     return plan
 

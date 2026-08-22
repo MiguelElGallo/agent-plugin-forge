@@ -1,22 +1,28 @@
 {
   "skill": "package-agent-skill",
   "origin": "https://github.com/MiguelElGallo/agent-plugin-forge",
-  "revision": "sha256:62d1ca45445990023398102f6fefb92057246bd7ef5eeec4c60118de5b563d07",
+  "revision": "sha256:9caa171cc943f922566c56e5df206d436153d1ed32c47818a588b65b982693e5",
   "sourceSubpath": "plugins/agent-plugin-forge/skills/package-agent-skill",
-  "importedAt": "2026-08-21",
+  "importedAt": "2026-08-22",
   "license": "MIT",
   "licenseEvidence": {
     "path": "LICENSE",
     "sha256": "6a55b8c7a99caa57772f912232a4cd9e5e148dfc453776e0b1c0998734947b78"
   },
-  "contentSha256": "62d1ca45445990023398102f6fefb92057246bd7ef5eeec4c60118de5b563d07",
+  "contentSha256": "9caa171cc943f922566c56e5df206d436153d1ed32c47818a588b65b982693e5",
   "files": {
-    "SKILL.md": "d4b097ee93dabf06c064a70f73eb6fcc2be264819448cbf503ecc776d96be5c4",
-    "references/intake.md": "4146e6158f019937a0bd9e3f60992fd4910f79af072b1698b6fa1db32a52dd89"
+    "SKILL.md": "b09190696d99103454dd32a561a68876ceef649667f3dc7a47163114bb810a9b",
+    "references/intake.md": "044d15b2095e222ce581e38841ddab5e9c8fa262762eb577eaefcf1a5eafdeb6",
+    "references/private-github.md": "913b6c485696e745eca7dfca846c6337674556528c8ae9b4181f91ac8dd4f47d",
+    "references/publish.md": "2f78b9e2db168b52553a4e0dac380747666c677937342f12e7ca098c87ce9949",
+    "scripts/bootstrap_forge.py": "3ec9ce01805078b8f00851558e225c270a9dfa4f81ddd906d01cf73b408917a9"
   },
   "fileModes": {
     "SKILL.md": false,
-    "references/intake.md": false
+    "references/intake.md": false,
+    "references/private-github.md": false,
+    "references/publish.md": false,
+    "scripts/bootstrap_forge.py": false
   },
   "transformations": [
     "Created natively for Agent Plugin Forge"

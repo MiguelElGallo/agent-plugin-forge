@@ -2,6 +2,21 @@
 
 Run commands from the repository root with `uv run forge`. Commands return `0` on success and `2` for a user-correctable forge or Pydantic contract error.
 
+Users publishing through the installed plugin do not run these commands manually. The agent bootstraps a checkout, presents the import plan, and uses the CLI after the review checkpoint.
+
+## Bootstrap helper
+
+The installed `package-agent-skill` includes `scripts/bootstrap_forge.py`. Resolve the helper from the installed skill rather than the Forge repository root. It clones current `main` without modifying the user's project and prints the selected origin, host, checkout, branch, and exact revision as JSON.
+
+```bash
+uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstrap_forge.py \
+  [--origin GIT_URL] \
+  [--destination ABSOLUTE_PATH] \
+  [--reuse]
+```
+
+`AGENT_PLUGIN_FORGE_ORIGIN` supplies a default alternate origin. `--reuse` accepts only a regular, clean checkout on `main` whose configured origin exactly matches. Without `--destination`, the helper creates a new operating-system temporary location.
+
 ## `forge branch`
 
 Creates `skill/<plugin>/<skill>` from a clean local base aligned with `origin/main`.

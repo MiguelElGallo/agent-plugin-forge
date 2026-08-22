@@ -133,7 +133,8 @@ def run(argv: list[str] | None = None) -> int:
         action = "Imported" if args.apply else "Plan"
         print(
             f"{action}: {plan.skill} -> plugins/{plan.plugin}/skills/{plan.skill} "
-            f"({plan.file_count} files, content sha256 {plan.content_sha256}, "
+            f"({plan.file_count} files, repository {plan.repository_url}, "
+            f"content sha256 {plan.content_sha256}, "
             f"review plan sha256 {plan.plan_sha256})"
         )
         if not args.apply:

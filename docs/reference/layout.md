@@ -3,7 +3,10 @@
 ```text
 plugins/<plugin>/
 ├── plugin.json                       portable closed manifest
-├── skills/<skill>/SKILL.md           optional, immediate children only
+├── skills/<skill>/                   optional, immediate children only
+│   ├── SKILL.md                      required skill entrypoint
+│   ├── references/                   optional progressive guidance
+│   └── scripts/                      optional packaged helpers
 ├── mcp.json                          optional portable MCP configuration
 ├── server.py / bin/ / config/        optional packaged MCP runtime files
 ├── LICENSE / LICENSES/ / licenses/   distributed license evidence
@@ -19,3 +22,5 @@ examples/tutorial/                    runnable documentation inputs
 Agent Plugins discovers only immediate directories under `skills/` and only root `mcp.json`. Category is marketplace taxonomy, never a nesting level.
 
 Portable packages may be skill-only, MCP-only, or mixed. A useful forge package must expose at least one skill or one non-empty MCP server. Both generated marketplace indexes point directly to these portable packages.
+
+The installed `package-agent-skill` keeps its bootstrap helper under its own `scripts/` directory. This makes the no-clone publication entrypoint travel with the plugin while the complete Forge runtime stays in the current selected checkout.

@@ -8,7 +8,15 @@ from pydantic import ValidationError
 
 import agent_plugin_forge.importer as importer_module
 from agent_plugin_forge.common import ForgeError, load_json
-from agent_plugin_forge.importer import ImportRequest, apply_import, plan_import
+from agent_plugin_forge.importer import (
+    ImportRequest,
+    _forge_repository_url,
+    _manifest_repository_url,
+    apply_import,
+    plan_import,
+)
+
+from .conftest import git
 
 
 def request(source: Path, **overrides: object) -> ImportRequest:
@@ -35,6 +43,7 @@ def request(source: Path, **overrides: object) -> ImportRequest:
 def apply_reviewed(repo: Path, source: Path, **overrides: object):
     import_request = request(source, **overrides)
     plan = plan_import(repo, import_request)
+    git(repo, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     return apply_import(
         repo, import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
     )
@@ -57,6 +66,170 @@ def test_apply_preserves_content_and_records_provenance(
         empty_forge / "plugins" / plan.plugin / "provenance" / f"{plan.skill}.json"
     )
     assert provenance["contentSha256"] == plan.content_sha256
+    manifest = load_json(empty_forge / "plugins" / plan.plugin / "plugin.json")
+    assert manifest["repository"] == plan.repository_url
+
+
+def test_apply_creates_plugins_root_missing_from_a_fresh_clone(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    (empty_forge / "plugins").rmdir()
+
+    plan = apply_reviewed(empty_forge, skill_source)
+
+    assert (empty_forge / "plugins" / plan.plugin / "plugin.json").is_file()
+
+
+def test_manifest_repository_url_supports_private_and_local_git_origins(tmp_path: Path) -> None:
+    assert (
+        _manifest_repository_url(
+            "git@github.company.example:platform/agent-plugin-forge.git",
+            repo=tmp_path,
+        )
+        == "ssh://git@github.company.example/platform/agent-plugin-forge.git"
+    )
+    assert (
+        _manifest_repository_url("../forge.git", repo=tmp_path)
+        == (tmp_path / "../forge.git").resolve().as_uri()
+    )
+
+
+def test_manifest_repository_url_rejects_embedded_http_credentials(tmp_path: Path) -> None:
+    with pytest.raises(ForgeError, match="must not embed credentials"):
+        _manifest_repository_url(
+            "https://token@github.company.example/platform/forge.git",
+            repo=tmp_path,
+        )
+
+
+def test_forge_repository_url_requires_git_origin(tmp_path: Path) -> None:
+    with pytest.raises(ForgeError, match="Git worktree with an origin remote"):
+        _forge_repository_url(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "origin, message",
+    [
+        (
+            "https://github.company.example/platform/forge.git?token=secret",
+            "query or fragment",
+        ),
+        (
+            "https://github.company.example/platform/forge.git#token=secret",
+            "query or fragment",
+        ),
+        (
+            "git@github.company.example:platform/forge.git?token=secret",
+            "query or fragment",
+        ),
+        (
+            "git@github.company.example:platform/forge.git#token=secret",
+            "query or fragment",
+        ),
+        (
+            "git?token@github.company.example:platform/forge.git",
+            "query or fragment",
+        ),
+        (
+            "git@github.company.example#token:platform/forge.git",
+            "query or fragment",
+        ),
+        ("git@github.company.example:platform/forge.git\nsecret", "control characters"),
+        ("git://github.company.example/platform/forge.git", "must use HTTPS"),
+        ("ext::sh -c id", "remote-helper"),
+    ],
+)
+def test_manifest_repository_url_rejects_unsafe_network_origins(
+    tmp_path: Path, origin: str, message: str
+) -> None:
+    with pytest.raises(ForgeError, match=message):
+        _manifest_repository_url(origin, repo=tmp_path)
+
+
+def test_plan_binds_forge_repository_origin(empty_forge: Path, skill_source: Path) -> None:
+    git(
+        empty_forge,
+        "remote",
+        "set-url",
+        "origin",
+        "ssh://git@github.company.example/platform/forge.git",
+    )
+    import_request = request(skill_source)
+    plan = plan_import(empty_forge, import_request)
+    assert plan.repository_url == "ssh://git@github.company.example/platform/forge.git"
+
+    git(
+        empty_forge,
+        "remote",
+        "set-url",
+        "origin",
+        "ssh://git@other.company.example/platform/forge.git",
+    )
+    with pytest.raises(ForgeError, match="full-plan hash"):
+        apply_import(
+            empty_forge,
+            import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
+        )
+
+
+@pytest.mark.parametrize(
+    "origin, message",
+    [
+        ("https://token@private.example/repo.git", "must not embed credentials"),
+        ("file://token@localhost/private/repo.git", "must not embed credentials"),
+        ("https://private.example/repo.git?token=secret", "query or fragment"),
+        ("https://private.example/repo.git#secret", "query or fragment"),
+        ("git?secret@private.example:team/repo.git", "query or fragment"),
+        ("git@private.example#secret:team/repo.git", "query or fragment"),
+        ("ext::sh -c id", "remote-helper"),
+        ("git://private.example/repo.git", "must use HTTPS"),
+        ("../relative-source", "absolute path or a simple identifier"),
+    ],
+)
+def test_import_rejects_unsafe_provenance_origins(
+    skill_source: Path, origin: str, message: str
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        request(skill_source, origin=origin)
+
+
+def test_import_normalizes_source_origin_in_plan_and_provenance(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    import_request = request(
+        skill_source,
+        origin="git@github.company.example:team/source-skill.git",
+    )
+    assert import_request.origin == "ssh://git@github.company.example/team/source-skill.git"
+    plan = plan_import(empty_forge, import_request)
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
+    applied = apply_import(
+        empty_forge,
+        import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
+    )
+    provenance = load_json(
+        empty_forge / "plugins" / applied.plugin / "provenance" / f"{applied.skill}.json"
+    )
+    assert provenance["origin"] == import_request.origin
+
+    local_request = request(skill_source, origin=str(skill_source.parent.resolve()))
+    assert local_request.origin == skill_source.parent.resolve().as_uri()
+
+
+def test_plan_binds_full_catalog_bytes(empty_forge: Path, skill_source: Path) -> None:
+    import_request = request(skill_source)
+    plan = plan_import(empty_forge, import_request)
+    catalog_path = empty_forge / "catalog" / "plugins.json"
+    catalog_path.write_text(
+        catalog_path.read_text(encoding="utf-8").replace("Test marketplace", "Changed marketplace"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ForgeError, match="full-plan hash"):
+        apply_import(
+            empty_forge,
+            import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
+        )
 
 
 def test_existing_bundle_requires_version_bump(empty_forge: Path, skill_source: Path) -> None:
@@ -226,6 +399,7 @@ def test_imports_a_lone_skill_file(empty_forge: Path, skill_source: Path) -> Non
     plan = plan_import(empty_forge, import_request)
     assert plan.source_kind == "skill-file"
     assert plan.files.keys() == {"SKILL.md"}
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     applied = apply_import(
         empty_forge,
         import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
@@ -279,6 +453,7 @@ def test_apply_rolls_back_plugin_and_catalog_on_publish_failure(
     import_request = request(skill_source)
     plan = plan_import(empty_forge, import_request)
     reviewed = import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     catalog_before = (empty_forge / "catalog" / "plugins.json").read_bytes()
     real_replace = importer_module.os.replace
     calls = 0

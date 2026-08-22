@@ -45,6 +45,8 @@ def empty_forge(tmp_path: Path) -> Path:
         source_schemas,
         repo / "schemas" / "agent-plugins" / "1.0.0",
     )
+    git(repo, "init", "-b", "main")
+    git(repo, "remote", "add", "origin", "https://github.com/Test/agent-plugin-forge.git")
     return repo
 
 

@@ -18,6 +18,12 @@ During intake and generation, Forge rejects:
 
 The importer plans before writing and binds the full approved plan. It copies content without running scripts or hooks. Generation builds all client artifacts in a temporary tree, validates them, then replaces outputs as a transaction. Failure tests prove rollback restores the previous state.
 
+## Authorization boundary
+
+An initial request to publish starts review only. The installed skill may create a local checkout and plan, but it must stop before applying the plan or changing GitHub state. The user approves the exact plan hash and the proposed fork, push, and pull-request actions. Merge remains separate and requires the reviewed head SHA plus green required checks.
+
+For alternate origins, the bootstrap helper verifies the selected remote and a reusable checkout's branch, cleanliness, and origin. Publication derives its target and authentication host from that origin rather than assuming GitHub.com.
+
 ## What reviewers still decide
 
 Automated checks do not prove that prompt instructions are honest, a script is benign, an HTTPS endpoint is trustworthy, or an upstream license grants the intended rights. Reviewers must examine:

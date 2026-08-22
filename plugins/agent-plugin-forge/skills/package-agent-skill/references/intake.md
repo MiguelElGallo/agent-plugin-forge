@@ -17,7 +17,7 @@ Do not apply this repository's MIT license to third-party content. Confirm the a
 
 Record:
 
-- canonical source URL or a precise local-origin identifier;
+- canonical HTTPS/SSH source URL, absolute local path, or precise local-origin identifier; never place credentials, query tokens, or fragments in provenance;
 - a full immutable Git object ID or `sha256:<content digest>`;
 - source subpath and import date;
 - SPDX license and its evidence file;

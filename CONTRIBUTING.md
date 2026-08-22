@@ -1,5 +1,7 @@
 # Contributing
 
+This guide is for people changing the Forge repository or its marketplace directly. Users installing the Forge or publishing a skill through the installed agent workflow do not need to clone this repository; start from the [documentation homepage](https://miguelelgallo.github.io/agent-plugin-forge/).
+
 Install the locked environment and start from a clean, current `main`:
 
 ```bash
