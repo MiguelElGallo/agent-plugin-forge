@@ -21,11 +21,11 @@ Pydantic owns forge-specific catalog, provenance, marketplace, and MCP semantic 
 
 Before release, record exact versions and test both the installed user journey and direct contributor workflow:
 
-1. install the exact current `agent-plugin-forge` package in an isolated VS Code profile and confirm `package-agent-skill` in **Chat: Configure Skills**;
+1. run **Chat: Install Plugin from Source** against the exact public repository in an isolated VS Code profile, accept the source trust prompt, select `agent-plugin-forge` when a multi-entry marketplace presents a picker, confirm that it shows **Manage**, and find `package-agent-skill` in **Chat: Configure Skills...**;
 2. run the packaged bootstrap helper against an isolated Git remote and verify temporary creation, alternate origin, persistent reuse, clean `main`, and exact revision;
 3. install the same package in isolated Copilot CLI and Codex homes;
 4. open a disposable contributor clone in VS Code and run the manual tutorial commands;
-5. register a local portable fixture with `chat.pluginLocations`, confirm its skill and MCP server, and call a credential-free tool.
+5. install a local portable fixture with **Chat: Install Plugin from Source**, confirm its skill and MCP server, and call a credential-free tool.
 
 Marketplace command pairs:
 
@@ -41,7 +41,11 @@ codex plugin list
 
 Use isolated client homes for repeatable tests. Do not remove or replace a user's existing marketplace registrations during acceptance.
 
-For private-marketplace qualification, use a disposable private or local Git source. Confirm that all clients accept the same HTTPS or SSH marketplace URL and that publication derives its host and PR target from the selected origin. Never place real private credentials in fixtures or logs.
+For VS Code update acceptance, run **Extensions: Check for Extension Updates** and confirm the new plugin version before relying on the approximately daily automatic check.
+
+Treat local-origin and private-host acceptance as separate checks. A disposable local Git source qualifies offline review, origin hashing, and refusal to publish without a GitHub endpoint.
+
+Private-marketplace qualification requires a disposable private GitHub.com or GitHub Enterprise Server remote. Confirm each client accepts its documented HTTPS or SSH form, every form resolves to the intended repository, the review prompt retains the private origin, and publication derives its authentication host and pull-request target from that origin. Never place real private credentials in fixtures or logs.
 
 ## Publish and read back
 

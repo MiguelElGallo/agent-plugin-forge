@@ -15,6 +15,8 @@ uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstr
 
 The user may set `AGENT_PLUGIN_FORGE_ORIGIN` instead. For a persistent checkout outside the temporary directory, add `--destination ABSOLUTE_PATH`; use `--reuse` in later sessions only when that checkout should be updated.
 
+Installing the skill from a private marketplace does not set `AGENT_PLUGIN_FORGE_ORIGIN` or pass that marketplace URL to the helper. Require the selected origin in every review or reuse request unless the environment variable is already configured. If private or alternate publication is expected and the origin is missing, stop and ask; never silently use the public default.
+
 ## Authenticate the host
 
 Git clone, fetch, and push use the user's existing Git credential helper or SSH configuration. GitHub CLI operations require authentication for the same host:
@@ -29,6 +31,6 @@ Derive repository and pull-request targets from the selected GitHub origin. Do n
 
 ## Client marketplace source
 
-Codex and Copilot CLI accept HTTPS and SSH Git marketplace URLs. VS Code accepts Git URLs in `chat.plugins.marketplaces`. Use the same private source in each client so installation and publication target the same catalog.
+A full HTTPS Git URL is the simplest common marketplace source for Codex, Copilot CLI, and VS Code. Codex and Copilot CLI also accept SSH Git URLs. VS Code documents SCP-style SSH remotes such as `git@github.company.example:platform/agent-plugin-forge.git`; do not assume that every client accepts the same textual SSH form. Use client-supported forms that resolve to the same private repository so installation and publication stay inside the intended catalog.
 
 After merge, report install commands using the marketplace name declared by that repository. Do not assume its name is `agent-plugin-forge` if the mirror changed the catalog metadata.

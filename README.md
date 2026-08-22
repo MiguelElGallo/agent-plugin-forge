@@ -8,16 +8,13 @@ You do **not** need to clone this repository to use the Forge.
 
 ### Visual Studio Code
 
-Open **Preferences: Open User Settings (JSON)** and merge these entries into the existing object:
+Open the Command Palette, run **Chat: Install Plugin from Source**, and enter:
 
-```json
-{
-  "chat.plugins.enabled": true,
-  "chat.plugins.marketplaces": ["MiguelElGallo/agent-plugin-forge"]
-}
+```text
+https://github.com/MiguelElGallo/agent-plugin-forge
 ```
 
-Open the Extensions view, search for `@agentPlugins`, and install `agent-plugin-forge`.
+Review the source URL and choose **Trust**. If VS Code shows the marketplace's plugin list, select `agent-plugin-forge`. Then run **Chat: Configure Skills...** to confirm that `package-agent-skill` is available. No repository clone or `settings.json` edit is required.
 
 ### Codex
 
@@ -45,7 +42,7 @@ The installed skill creates a disposable, current Forge checkout itself. It insp
 
 Publication begins only when you approve that exact plan. The agent then applies it, runs the complete validation suite, creates or reuses your GitHub fork or writable remote when necessary, pushes the branch, and opens a pull request. Merge remains a separate authorization.
 
-Follow [Publish your first skill](https://miguelelgallo.github.io/agent-plugin-forge/tutorials/publish-skill/) for the complete two-phase experience.
+Follow [Publish a skill with your agent](https://miguelelgallo.github.io/agent-plugin-forge/how-to/publish-skill/) for the complete two-phase workflow.
 
 ## 3. Install the published plugin
 
@@ -63,11 +60,11 @@ copilot plugin marketplace update agent-plugin-forge
 copilot plugin install PLUGIN_NAME@agent-plugin-forge
 ```
 
-VS Code users open **Chat: Open Customizations**, choose **Plugins**, refresh, and install `PLUGIN_NAME`. See [Install a published plugin](https://miguelelgallo.github.io/agent-plugin-forge/tutorials/install-published-plugin/).
+VS Code users run **Extensions: Check for Extension Updates**, then open **Chat: Open Customizations**, choose **Plugins**, and install `PLUGIN_NAME` from **Browse Marketplace**. See [Install a published plugin](https://miguelelgallo.github.io/agent-plugin-forge/tutorials/install-published-plugin/).
 
 ## Private GitHub and custom locations
 
-The Forge is not tied to GitHub.com or a fixed local path. Codex, Copilot CLI, and VS Code accept a Git marketplace URL. The publication skill accepts a custom HTTPS or SSH Forge origin and can create or safely reuse a checkout at a location you choose.
+The Forge is not tied to GitHub.com or a fixed local path. Codex, Copilot CLI, and VS Code accept Git marketplace sources, and the publication skill can create or safely reuse a checkout at a location you choose. GitHub.com and GitHub Enterprise Server origins support the automated push and pull-request phase. Other Git hosts support installation and review but require a separately reviewed host-specific contribution workflow.
 
 See [Use a private Forge marketplace](https://miguelelgallo.github.io/agent-plugin-forge/how-to/private-marketplace/) for GitHub Enterprise Server, private repositories, mirrors, and persistent checkout setup.
 
