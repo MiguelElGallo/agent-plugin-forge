@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import agent_plugin_forge.generator as generator_module
 from agent_plugin_forge.common import ForgeError
 from agent_plugin_forge.generator import generate, generation_drift, render_marketplaces
 
@@ -29,7 +30,7 @@ def test_copilot_and_codex_outputs_are_distinct(empty_forge: Path, skill_source:
     assert '"owner"' in copilot
     assert '"policy"' in codex
     assert '"owner"' not in codex
-    assert (empty_forge / "compat" / "codex" / "plugins" / "sample-skill" / "LICENSE").is_file()
+    assert '"path": "./plugins/sample-skill"' in codex
 
 
 def test_catalog_traversal_is_rejected_before_io(empty_forge: Path) -> None:
@@ -42,12 +43,22 @@ def test_catalog_traversal_is_rejected_before_io(empty_forge: Path) -> None:
     assert not (empty_forge.parent / "escape").exists()
 
 
+def test_marketplace_metadata_enforces_name_and_description_limits(empty_forge: Path) -> None:
+    catalog_path = empty_forge / "catalog" / "plugins.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["marketplace"]["name"] = "Invalid Name"
+    catalog["marketplace"]["description"] = "x" * 1025
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+    with pytest.raises(ForgeError, match="Invalid catalog"):
+        render_marketplaces(empty_forge)
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Windows symlink creation requires extra privileges")
 def test_generation_rejects_skill_symlink(empty_forge: Path, skill_source: Path) -> None:
     apply_reviewed(empty_forge, skill_source)
     copied = empty_forge / "plugins" / "sample-skill" / "skills" / "sample-skill"
     (copied / "unsafe-link").symlink_to(Path("/etc/hosts"))
-    with pytest.raises(ForgeError, match="Unsafe file"):
+    with pytest.raises(ForgeError, match="Links and junctions are not accepted"):
         generate(empty_forge)
 
 
@@ -67,28 +78,6 @@ def test_generation_refuses_symlinked_marketplace_output(
     assert victim.read_text(encoding="utf-8") == "do not overwrite\n"
 
 
-@pytest.mark.skipif(os.name == "nt", reason="Windows symlink creation requires extra privileges")
-def test_drift_rejects_symlinked_wrapper_file(empty_forge: Path, skill_source: Path) -> None:
-    apply_reviewed(empty_forge, skill_source)
-    generate(empty_forge)
-    wrapper_skill = (
-        empty_forge
-        / "compat"
-        / "codex"
-        / "plugins"
-        / "sample-skill"
-        / "skills"
-        / "sample-skill"
-        / "SKILL.md"
-    )
-    portable_skill = (
-        empty_forge / "plugins" / "sample-skill" / "skills" / "sample-skill" / "SKILL.md"
-    )
-    wrapper_skill.unlink()
-    wrapper_skill.symlink_to(portable_skill)
-    assert any("symlink" in error for error in generation_drift(empty_forge))
-
-
 def test_manifest_identity_cannot_change_generated_paths(
     empty_forge: Path, skill_source: Path
 ) -> None:
@@ -101,31 +90,42 @@ def test_manifest_identity_cannot_change_generated_paths(
         render_marketplaces(empty_forge)
 
 
-def test_codex_compatibility_requires_rich_identity(empty_forge: Path, skill_source: Path) -> None:
+def test_generation_rolls_back_every_output_on_publish_failure(
+    empty_forge: Path,
+    skill_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     apply_reviewed(empty_forge, skill_source)
+    generate(empty_forge)
+    paths = [
+        empty_forge / ".github" / "plugin" / "marketplace.json",
+        empty_forge / ".agents" / "plugins" / "marketplace.json",
+    ]
+    before = {path: path.read_bytes() for path in paths}
     manifest_path = empty_forge / "plugins" / "sample-skill" / "plugin.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    del manifest["description"]
+    manifest["version"] = "0.2.0"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(ForgeError, match="requires description"):
-        render_marketplaces(empty_forge)
+    real_replace = generator_module.os.replace
+    calls = 0
 
+    def fail_second_output(source: Path, destination: Path) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 4:
+            raise OSError("simulated generated-output publish failure")
+        real_replace(source, destination)
 
-def test_codex_compatibility_rejects_non_https_urls(empty_forge: Path, skill_source: Path) -> None:
-    apply_reviewed(empty_forge, skill_source)
-    manifest_path = empty_forge / "plugins" / "sample-skill" / "plugin.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["author"]["url"] = "http://example.com"
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(ForgeError, match="Invalid generated Codex manifest"):
+    monkeypatch.setattr(generator_module.os, "replace", fail_second_output)
+    with pytest.raises(OSError, match="simulated"):
         generate(empty_forge)
+    assert {path: path.read_bytes() for path in paths} == before
 
 
-def test_codex_compatibility_rejects_todo_markers(empty_forge: Path, skill_source: Path) -> None:
+def test_drift_rejects_obsolete_codex_wrapper_tree(empty_forge: Path, skill_source: Path) -> None:
     apply_reviewed(empty_forge, skill_source)
-    manifest_path = empty_forge / "plugins" / "sample-skill" / "plugin.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["description"] = "[TODO: replace me]"
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(ForgeError, match=r"\[TODO:"):
-        generate(empty_forge)
+    generate(empty_forge)
+    (empty_forge / "compat" / "codex").mkdir(parents=True)
+    assert generation_drift(empty_forge) == [
+        "Obsolete generated Codex wrapper tree remains at compat/codex"
+    ]

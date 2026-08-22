@@ -2,111 +2,126 @@ from __future__ import annotations
 
 import hashlib
 import os
-import re
 import shutil
-import stat
 import subprocess
 import tempfile
-from dataclasses import dataclass
 from datetime import date
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 from .common import (
-    MAX_FILE_BYTES,
     PLUGIN_SCHEMA,
     ForgeError,
     contained_child,
-    file_hashes,
-    inspect_tree,
     json_bytes,
     load_json,
     parse_semver,
-    parse_skill_frontmatter,
-    tree_hash,
-    validate_name,
-    validate_spdx_expression,
 )
-
-IMMUTABLE_REVISION_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64}|sha256:[0-9a-f]{64})$")
-
-
-@dataclass(frozen=True)
-class ImportRequest:
-    source: Path
-    plugin: str
-    category: str | None
-    version: str | None
-    description: str | None
-    author: str | None
-    license_id: str
-    license_file: Path
-    origin: str
-    revision: str
-    source_subpath: str
-    imported_at: str
-    expected_sha256: str | None = None
-    transformations: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class ImportPlan:
-    plugin: str
-    skill: str
-    destination: Path
-    creates_plugin: bool
-    file_count: int
-    content_sha256: str
-    license_sha256: str
-    license_destination: str
-    plan_sha256: str
-    files: dict[str, str]
+from .filesystem import (
+    MAX_FILE_BYTES,
+    copy_regular_tree,
+    inspect_regular_file,
+    inspect_regular_tree,
+)
+from .models import ImportPlan, ImportRequest
+from .sources import SkillSource, resolve_skill_source
 
 
 def _catalog_entry(catalog: dict[str, Any], plugin: str) -> dict[str, Any] | None:
     entries = catalog.get("plugins", [])
     if not isinstance(entries, list):
         raise ForgeError("catalog/plugins.json plugins must be an array")
+    if not all(isinstance(entry, dict) for entry in entries):
+        raise ForgeError("catalog/plugins.json plugin entries must be objects")
     return next((entry for entry in entries if entry.get("name") == plugin), None)
 
 
+def _reject_duplicate_skill_destination(
+    repo: Path, catalog: dict[str, Any], plugin: str, skill: str
+) -> None:
+    entries = catalog.get("plugins", [])
+    if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
+        raise ForgeError("catalog/plugins.json plugin entries must be objects")
+    for entry in entries:
+        other_name = entry.get("name")
+        if not isinstance(other_name, str) or other_name == plugin:
+            continue
+        other_root = contained_child(repo / "plugins", other_name, kind="plugin")
+        duplicate = contained_child(other_root / "skills", skill, kind="skill")
+        if duplicate.exists() or duplicate.is_symlink():
+            raise ForgeError(
+                f"Skill name {skill!r} already exists in plugin {other_name!r}; "
+                "skill names must be repository-wide unique"
+            )
+
+
 def _validate_request_metadata(request: ImportRequest) -> None:
-    if not request.origin.strip():
-        raise ForgeError("Origin must be non-empty")
-    if IMMUTABLE_REVISION_RE.fullmatch(request.revision) is None:
-        raise ForgeError("Revision must be a full Git object ID or sha256:<64 lowercase hex>")
-    subpath = PurePosixPath(request.source_subpath)
-    if subpath.is_absolute() or ".." in subpath.parts:
-        raise ForgeError("Source subpath must be relative and cannot contain '..'")
-    try:
-        date.fromisoformat(request.imported_at)
-    except ValueError as exc:
-        raise ForgeError("Import date must use YYYY-MM-DD") from exc
-    validate_spdx_expression(request.license_id, label="License")
-    if request.license_file.is_symlink() or not request.license_file.is_file():
-        raise ForgeError("--license-file must be a regular, non-symlink file")
-    if request.license_file.stat().st_size > MAX_FILE_BYTES:
+    content = inspect_regular_file(request.license_file, file_label="License file")
+    if len(content) > MAX_FILE_BYTES:  # pragma: no cover - enforced by inspect_regular_file
         raise ForgeError(f"License file exceeds {MAX_FILE_BYTES} bytes")
 
 
+def _require_available_output(plugin_root: Path, target: Path, *, label: str) -> None:
+    if target.exists() or target.is_symlink():
+        raise ForgeError(f"{label} already exists: {target}")
+    current = target.parent
+    while current != plugin_root:
+        if current.exists() and (current.is_symlink() or not current.is_dir()):
+            raise ForgeError(f"{label} parent is not a safe directory: {current}")
+        current = current.parent
+
+
+def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not plugin_root.exists():
+        return None
+    files = inspect_regular_tree(
+        plugin_root,
+        required_root_file="plugin.json",
+        tree_label="Destination plugin",
+    )
+    return {
+        "catalogEntry": entry,
+        "files": {
+            path.relative_to(plugin_root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in files
+        },
+        "fileModes": {
+            path.relative_to(plugin_root).as_posix(): bool(path.stat().st_mode & 0o111)
+            for path in files
+        },
+    }
+
+
 def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
-    validate_name(request.plugin, kind="plugin")
     _validate_request_metadata(request)
-    files = inspect_tree(request.source)
-    metadata = parse_skill_frontmatter(request.source / "SKILL.md")
-    skill = str(metadata["name"])
-    if request.source.name != skill:
-        raise ForgeError(
-            f"Source directory {request.source.name!r} must match SKILL.md name {skill!r}; "
-            "normalize it in a separate reviewed change"
-        )
+    source = resolve_skill_source(request.source, request.source_skill)
+    skill = source.name
     plugin_root = contained_child(repo / "plugins", request.plugin, kind="plugin")
     destination = contained_child(plugin_root / "skills", skill, kind="skill")
     if destination.exists():
         raise ForgeError(f"Destination already exists: {destination}")
     creates_plugin = not plugin_root.exists()
+    license_destination = (
+        "LICENSE"
+        if creates_plugin
+        else (Path("licenses") / skill / request.license_file.name).as_posix()
+    )
+    if not creates_plugin:
+        _require_available_output(plugin_root, destination, label="Skill destination")
+        _require_available_output(
+            plugin_root,
+            plugin_root / license_destination,
+            label="License destination",
+        )
+        _require_available_output(
+            plugin_root,
+            plugin_root / "provenance" / f"{skill}.json",
+            label="Provenance destination",
+        )
     catalog = load_json(repo / "catalog" / "plugins.json")
+    _reject_duplicate_skill_destination(repo, catalog, request.plugin, skill)
     entry = _catalog_entry(catalog, request.plugin)
+    target_state = _target_state(plugin_root, entry)
     if creates_plugin:
         missing = [
             name
@@ -133,17 +148,15 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         proposed = parse_semver(request.version, label="Bundle version")
         if proposed <= current:
             raise ForgeError("Adding to an existing bundle requires a higher --version")
-    hashes = file_hashes(request.source)
-    content_sha256 = tree_hash(hashes)
+    hashes = source.hashes()
+    file_modes = source.modes()
+    content_sha256 = source.content_sha256()
     license_sha256 = hashlib.sha256(request.license_file.read_bytes()).hexdigest()
-    license_destination = (
-        "LICENSE"
-        if creates_plugin
-        else (Path("licenses") / skill / request.license_file.name).as_posix()
-    )
     plan_payload = {
         "plugin": request.plugin,
         "skill": skill,
+        "sourceKind": source.kind,
+        "sourceSkill": request.source_skill,
         "category": request.category,
         "version": request.version,
         "description": request.description,
@@ -154,58 +167,56 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         "origin": request.origin,
         "revision": request.revision,
         "sourceSubpath": request.source_subpath,
-        "importedAt": request.imported_at,
+        "importedAt": request.imported_at.isoformat(),
         "transformations": list(request.transformations),
         "contentSha256": content_sha256,
+        "fileModes": file_modes,
+        "targetState": target_state,
     }
     plan_sha256 = hashlib.sha256(json_bytes(plan_payload)).hexdigest()
     return ImportPlan(
         plugin=request.plugin,
         skill=skill,
+        source_kind=source.kind,
         destination=destination,
         creates_plugin=creates_plugin,
-        file_count=len(files),
+        file_count=len(hashes),
         content_sha256=content_sha256,
         license_sha256=license_sha256,
         license_destination=license_destination,
         plan_sha256=plan_sha256,
         files=hashes,
+        file_modes=file_modes,
     )
 
 
 def _copy_regular_tree(source: Path, destination: Path) -> None:
-    destination.mkdir(parents=True, exist_ok=True)
-    folded: set[str] = set()
-    for path in sorted(source.rglob("*")):
-        relative = path.relative_to(source)
-        key = relative.as_posix().casefold()
-        if key in folded:
-            raise ForgeError(f"Case-fold path collision while staging: {relative}")
-        folded.add(key)
-        mode = path.lstat().st_mode
-        if stat.S_ISLNK(mode) or (not stat.S_ISDIR(mode) and not stat.S_ISREG(mode)):
-            raise ForgeError(f"Unsafe file while staging: {relative}")
-        target = destination / relative
-        if stat.S_ISDIR(mode):
-            target.mkdir(exist_ok=True)
-        else:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(path.read_bytes())
+    copy_regular_tree(source, destination)
 
 
-def _copy_reviewed_skill(source: Path, destination: Path, expected: dict[str, str]) -> None:
+def _copy_reviewed_skill(
+    source: SkillSource,
+    destination: Path,
+    expected: dict[str, str],
+    expected_modes: dict[str, bool],
+) -> None:
     destination.mkdir(parents=True)
     for relative, expected_hash in sorted(expected.items()):
-        source_file = source / relative
+        source_file = source.path_for(relative)
         if source_file.is_symlink() or not source_file.is_file():
             raise ForgeError(f"Reviewed source changed before apply: {relative}")
         content = source_file.read_bytes()
         if hashlib.sha256(content).hexdigest() != expected_hash:
             raise ForgeError(f"Reviewed source changed before apply: {relative}")
+        executable = bool(source_file.stat().st_mode & 0o111)
+        if executable != expected_modes[relative]:
+            raise ForgeError(f"Reviewed source mode changed before apply: {relative}")
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
-    if file_hashes(destination) != expected:
+        target.chmod(0o755 if executable else 0o644)
+    staged = resolve_skill_source(destination)
+    if staged.hashes() != expected:
         raise ForgeError("Staged skill does not match the reviewed source hash")
 
 
@@ -263,7 +274,8 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         license_relative = Path(plan.license_destination)
 
         staged_skill = staged_plugin / "skills" / plan.skill
-        _copy_reviewed_skill(request.source, staged_skill, plan.files)
+        source = resolve_skill_source(request.source, request.source_skill)
+        _copy_reviewed_skill(source, staged_skill, plan.files, plan.file_modes)
         license_content = request.license_file.read_bytes()
         if hashlib.sha256(license_content).hexdigest() != plan.license_sha256:
             raise ForgeError("Reviewed license changed before apply")
@@ -276,7 +288,7 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
             "origin": request.origin,
             "revision": request.revision,
             "sourceSubpath": request.source_subpath,
-            "importedAt": request.imported_at,
+            "importedAt": request.imported_at.isoformat(),
             "license": request.license_id,
             "licenseEvidence": {
                 "path": license_relative.as_posix(),
@@ -284,11 +296,14 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
             },
             "contentSha256": plan.content_sha256,
             "files": plan.files,
+            "fileModes": plan.file_modes,
             "transformations": list(request.transformations),
         }
         provenance_dir = staged_plugin / "provenance"
         provenance_dir.mkdir(exist_ok=True)
         (provenance_dir / f"{plan.skill}.json").write_bytes(json_bytes(provenance))
+        staged_catalog = temporary_root / "catalog.json"
+        staged_catalog.write_bytes(json_bytes(catalog))
 
         backup = temporary_root / "backup"
         replaced_existing = plugin_root.exists()
@@ -296,9 +311,7 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
             if replaced_existing:
                 os.replace(plugin_root, backup)
             os.replace(staged_plugin, plugin_root)
-            catalog_temp = catalog_path.with_name(f".{catalog_path.name}.{os.getpid()}.tmp")
-            catalog_temp.write_bytes(json_bytes(catalog))
-            os.replace(catalog_temp, catalog_path)
+            os.replace(staged_catalog, catalog_path)
         except Exception:
             if plugin_root.exists():
                 shutil.rmtree(plugin_root)

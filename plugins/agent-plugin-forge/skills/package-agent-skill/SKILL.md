@@ -1,40 +1,45 @@
 ---
 name: package-agent-skill
-description: Import or create an Agent Skill in Agent Plugin Forge, then package, validate, and prepare it for review as an Agent Plugins 1.0 distribution. Use when a user asks to add, copy, organize, bundle, or publish a skill through this repository.
+description: Import, create, or organize an Agent Skill or MCP server in Agent Plugin Forge, then package and validate it as an Agent Plugins 1.0 distribution for VS Code, Copilot, and Codex. Use when a user asks to add, copy, organize, bundle, or publish a skill, MCP server, or plugin through this repository.
 ---
 
 # Package an Agent Skill
 
-Use the forge CLI as the deterministic writer and validator. Do not hand-edit generated marketplace files or Codex compatibility wrappers.
+Use `uv run forge` as the deterministic writer and validator. Portable packages under `plugins/` are authoritative. Do not hand-edit generated marketplaces.
 
 ## Intake
 
-Identify the source and inspect it without executing any source scripts or hooks. Remote sources must be pinned and staged in a temporary local directory before import; the CLI accepts local skill directories only.
+Inspect the source without executing scripts or hooks. Forge accepts a skill directory, a lone `SKILL.md`, or an existing Agent Plugin. For a multi-skill plugin, identify the one immediate skill to import with `--source-skill`.
 
-Resolve these fields from the source when possible, and ask only for values that materially remain unknown:
+Remote sources must be resolved to an immutable revision and staged locally before import. The forge does not fetch URLs.
 
-- destination plugin; default to one skill per new plugin, and use an existing bundle only when explicitly requested;
-- category for a new plugin;
-- plugin version, description, and author;
-- source origin, immutable revision, source subpath, SPDX license, and a local license file.
+Resolve these fields from evidence and ask only for values still materially unknown:
 
-Read [references/intake.md](references/intake.md) when the source is remote, the skill is being added to an existing bundle, or license/provenance is unclear.
+- destination plugin; default to one skill per new plugin and bundle only when explicitly requested;
+- selected source skill when a source plugin contains several;
+- category for a new plugin only;
+- new plugin version, description, and author, or a higher bundle version;
+- canonical origin, immutable revision, source subpath, SPDX license, and local license evidence.
+
+Read [references/intake.md](references/intake.md) for remote sources, bundles, multiple source skills, or unclear license and provenance.
 
 ## Workflow
 
-1. From a clean, current `main`, create `skill/<plugin>/<skill>` with `uv run forge branch --plugin NAME --skill NAME`.
-2. Run `uv run forge import ...` without `--apply`. Review the plan and all copied prompt text, scripts, references, assets, license files, and provenance.
-3. If the source is structurally invalid, stop with exact diagnostics. Do not silently rewrite its `SKILL.md`; normalize it as a separate reviewed source change.
-4. Repeat the same command with `--apply --expected-sha256 HASH`, using the exact hash from the reviewed plan.
-5. Run `uv run forge generate`, then `uv run forge check`.
-6. Run the complete gate: `uv run ruff check .`, `uv run ruff format --check .`, `uv run ty check`, `uv run pytest`, and `uv run zensical build --clean --strict`.
-7. Review the diff. Commit and open a pull request; never push, merge, or broaden permissions unless the user authorizes that external action.
+1. From clean, current `main`, create `skill/<plugin>/<skill>` with `uv run forge branch --plugin NAME --skill NAME`.
+2. Run `uv run forge import ...` without `--apply` and review the printed plan plus every instruction, script, asset, license, and destination.
+3. If the source is structurally invalid, stop with the exact diagnostic. Normalize it in a separate reviewed source change; never silently rewrite imported `SKILL.md`.
+4. Repeat the same command with `--apply --expected-sha256 HASH`.
+5. Run `uv run forge generate` and `uv run forge check`.
+6. Run `uv run ruff check .`, `uv run ruff format --check .`, `uv run ty check`, `uv run pytest`, and `uv run zensical build --clean --strict`.
+7. Review the complete diff and prepare a pull request. Do not push or merge unless the user authorizes those external actions.
+
+For MCP or other plugin-wide files, use `uv run forge plugin-branch --plugin NAME --topic TOPIC`, bump the plugin version, and validate root `mcp.json`. Use `forge/<topic>` only for forge tooling, schemas, CI, or documentation.
 
 ## Invariants
 
-- The portable package is authoritative: root `plugin.json` and immediate `skills/<name>/SKILL.md`. Version 0.1 is skills-only and rejects `mcp.json`.
-- Category is distribution metadata, never a directory nesting level.
-- A bundle import inherits its existing category and requires a plugin version bump.
-- Imported content remains byte-identical. Forge metadata lives in `provenance/` outside the copied skill tree.
-- Importing copies files but never executes them. Treat instructions and scripts as untrusted until reviewed.
-- `.github/plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `compat/codex/` are generated outputs.
+- Portable discovery is fixed: root `plugin.json`, immediate `skills/<name>/SKILL.md`, and optional root `mcp.json`.
+- Packages may be skill-only, MCP-only, or mixed. Category remains catalog taxonomy, never directory nesting.
+- Bundle imports inherit category and require a higher semantic version.
+- Imported skill content remains byte-identical with executable modes bound by the plan. Forge metadata stays outside the copied tree in `provenance/`.
+- Import copies content without executing it. Treat instructions, scripts, and MCP runtimes as untrusted until reviewed.
+- `.github/plugin/marketplace.json` and `.agents/plugins/marketplace.json` are generated outputs; both point to the portable packages.

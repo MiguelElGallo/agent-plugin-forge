@@ -20,9 +20,7 @@ def _git(repo: Path, *args: str, check: bool = True) -> str:
     return result.stdout.strip()
 
 
-def create_skill_branch(repo: Path, plugin: str, skill: str, base: str = "main") -> str:
-    validate_name(plugin, kind="plugin")
-    validate_name(skill, kind="skill")
+def _create_branch(repo: Path, branch: str, base: str) -> str:
     if _git(repo, "status", "--porcelain"):
         raise ForgeError("Refusing to create a branch from a dirty worktree")
     current = _git(repo, "branch", "--show-current")
@@ -35,13 +33,29 @@ def create_skill_branch(repo: Path, plugin: str, skill: str, base: str = "main")
     remote_base = _git(repo, "rev-parse", "FETCH_HEAD")
     if local_base != remote_base:
         raise ForgeError(f"Local {base} is not aligned with origin/{base}")
-    branch = f"skill/{plugin}/{skill}"
     if _git(repo, "show-ref", "--verify", f"refs/heads/{branch}", check=False):
         raise ForgeError(f"Local branch already exists: {branch}")
     if _git(repo, "ls-remote", "--heads", "origin", branch):
         raise ForgeError(f"Remote branch already exists: {branch}")
     _git(repo, "switch", "-c", branch)
     return branch
+
+
+def create_skill_branch(repo: Path, plugin: str, skill: str, base: str = "main") -> str:
+    validate_name(plugin, kind="plugin")
+    validate_name(skill, kind="skill")
+    return _create_branch(repo, f"skill/{plugin}/{skill}", base)
+
+
+def create_maintenance_branch(repo: Path, topic: str, base: str = "main") -> str:
+    validate_name(topic, kind="skill")
+    return _create_branch(repo, f"forge/{topic}", base)
+
+
+def create_plugin_branch(repo: Path, plugin: str, topic: str, base: str = "main") -> str:
+    validate_name(plugin, kind="plugin")
+    validate_name(topic, kind="skill")
+    return _create_branch(repo, f"plugin/{plugin}/{topic}", base)
 
 
 def validate_skill_branch(branch: str) -> tuple[str, str]:
@@ -53,8 +67,26 @@ def validate_skill_branch(branch: str) -> tuple[str, str]:
     return parts[1], parts[2]
 
 
+def validate_maintenance_branch(branch: str) -> str:
+    parts = branch.split("/")
+    if len(parts) != 2 or parts[0] != "forge":
+        raise ForgeError("Maintenance branches must use forge/<topic>")
+    validate_name(parts[1], kind="skill")
+    return parts[1]
+
+
+def validate_plugin_branch(branch: str) -> tuple[str, str]:
+    parts = branch.split("/")
+    if len(parts) != 3 or parts[0] != "plugin":
+        raise ForgeError("Plugin branches must use plugin/<plugin>/<topic>")
+    validate_name(parts[1], kind="plugin")
+    validate_name(parts[2], kind="skill")
+    return parts[1], parts[2]
+
+
 def validate_pr_scope(repo: Path, branch: str, base: str) -> list[str]:
-    plugin, skill = validate_skill_branch(branch)
+    if base != "main":
+        raise ForgeError("Pull requests must target main")
     base_ref = f"origin/{base}"
     bootstrap = (
         subprocess.run(
@@ -68,6 +100,24 @@ def validate_pr_scope(repo: Path, branch: str, base: str) -> list[str]:
     changed = _git(repo, "diff", "--name-only", f"{base_ref}...HEAD").splitlines()
     if bootstrap:
         return changed
+    if branch.startswith("forge/"):
+        validate_maintenance_branch(branch)
+        return changed
+    if branch.startswith("plugin/"):
+        plugin, _ = validate_plugin_branch(branch)
+        exact = {
+            ".agents/plugins/marketplace.json",
+            ".github/plugin/marketplace.json",
+            "catalog/plugins.json",
+        }
+        prefixes = (f"plugins/{plugin}/",)
+        outside = [path for path in changed if path not in exact and not path.startswith(prefixes)]
+        if outside:
+            raise ForgeError(
+                f"PR changes files outside plugin branch scope {plugin}: {', '.join(outside)}"
+            )
+        return changed
+    plugin, skill = validate_skill_branch(branch)
     exact = {
         ".agents/plugins/marketplace.json",
         ".github/plugin/marketplace.json",
@@ -76,17 +126,11 @@ def validate_pr_scope(repo: Path, branch: str, base: str) -> list[str]:
         f"plugins/{plugin}/provenance/{skill}.json",
         f"plugins/{plugin}/LICENSE",
         f"plugins/{plugin}/NOTICE",
-        f"compat/codex/plugins/{plugin}/.codex-plugin/plugin.json",
-        f"compat/codex/plugins/{plugin}/LICENSE",
-        f"compat/codex/plugins/{plugin}/NOTICE",
     }
     prefixes = (
         f"plugins/{plugin}/skills/{skill}/",
         f"plugins/{plugin}/licenses/{skill}/",
         f"plugins/{plugin}/LICENSES/{skill}/",
-        f"compat/codex/plugins/{plugin}/skills/{skill}/",
-        f"compat/codex/plugins/{plugin}/licenses/{skill}/",
-        f"compat/codex/plugins/{plugin}/LICENSES/{skill}/",
     )
     outside = [path for path in changed if path not in exact and not path.startswith(prefixes)]
     if outside:

@@ -1,15 +1,50 @@
-# Contributing skills
+# Contributing
 
-Each skill change uses its own `skill/<plugin>/<skill>` branch and pull request. The seed commit on `main` is the one-time bootstrap exception required before protection can be enabled.
+Install the locked environment and start from a clean, current `main`:
 
-1. Install the locked environment with `uv sync --locked`.
-2. From a clean and current `main`, run `uv run forge branch --plugin NAME --skill NAME`.
-3. Stage remote content locally at an immutable revision. Inspect it; do not execute it.
-4. Run `uv run forge import` without `--apply` and review the plan.
-5. Repeat with `--apply --expected-sha256 HASH` and a reviewed `--license-file`, then run `uv run forge generate`.
-6. Run `uv run forge check`, Ruff, ty, pytest, and strict Zensical build.
-7. Review the full diff and open a pull request.
+```bash
+uv sync --locked
+uv run forge check
+```
 
-New plugins require a category, version, description, author, license, origin, and immutable revision. Adding a skill to a bundle inherits the bundle category and requires a version bump.
+## Choose the branch scope
 
-Imported content remains under its upstream license. This repository's MIT license does not replace third-party terms.
+- One skill: `uv run forge branch --plugin NAME --skill NAME`
+- MCP or plugin-wide change: `uv run forge plugin-branch --plugin NAME --topic TOPIC`
+- Forge tooling, CI, schema, or docs: `uv run forge maintenance-branch --topic TOPIC`
+
+Each helper checks the live remote for collisions and alignment. It never pushes or merges.
+
+## Import a skill
+
+1. Stage remote content locally at an immutable revision and inspect it without executing it.
+2. Run `uv run forge import` without `--apply`.
+3. Review the complete plan, source, license, and destination.
+4. Repeat with `--apply --expected-sha256 HASH`.
+5. Run `uv run forge generate`.
+
+New plugins require category, version, description, author, license, origin, and immutable revision. Bundles inherit category and require a version bump. Imported content remains under its applicable upstream license.
+
+## Run the gate
+
+```bash
+uv run forge check
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check
+uv run pytest
+uv run zensical build --clean --strict
+```
+
+Review all instructions, executable code, MCP endpoints, licenses, provenance, and generated output. Open a pull request targeting `main`; merge only after required checks pass and review conversations are resolved.
+
+## Place documentation with Diátaxis
+
+Keep each page focused on one user need, following [Diátaxis](https://diataxis.fr/):
+
+- `docs/tutorials/` provides a reliable, cumulative learning experience with concrete results;
+- `docs/how-to/` gives goal-oriented steps for competent users solving a specific problem;
+- `docs/reference/` describes CLI and data contracts precisely and completely;
+- `docs/explanation/` discusses architecture, trust, and design decisions.
+
+Link across categories instead of mixing teaching, task instructions, exhaustive facts, and conceptual discussion on one page.

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import replace
+import os
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
+import agent_plugin_forge.importer as importer_module
 from agent_plugin_forge.common import ForgeError, load_json
 from agent_plugin_forge.importer import ImportRequest, apply_import, plan_import
 
@@ -33,7 +35,9 @@ def request(source: Path, **overrides: object) -> ImportRequest:
 def apply_reviewed(repo: Path, source: Path, **overrides: object):
     import_request = request(source, **overrides)
     plan = plan_import(repo, import_request)
-    return apply_import(repo, replace(import_request, expected_sha256=plan.plan_sha256))
+    return apply_import(
+        repo, import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
+    )
 
 
 def test_plan_does_not_write(empty_forge: Path, skill_source: Path) -> None:
@@ -70,6 +74,47 @@ def test_existing_bundle_requires_version_bump(empty_forge: Path, skill_source: 
         )
 
 
+@pytest.mark.parametrize("collision", ["license", "provenance"])
+def test_existing_bundle_refuses_import_output_collisions(
+    empty_forge: Path, skill_source: Path, collision: str
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    second = skill_source.parent / "second-skill"
+    second.mkdir()
+    (second / "SKILL.md").write_text(
+        "---\nname: second-skill\ndescription: Second skill.\n---\n\nDo work.\n",
+        encoding="utf-8",
+    )
+    plugin_root = empty_forge / "plugins" / "sample-skill"
+    if collision == "license":
+        target = plugin_root / "licenses" / "second-skill" / "LICENSE"
+    else:
+        target = plugin_root / "provenance" / "second-skill.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("must not be replaced\n", encoding="utf-8")
+
+    with pytest.raises(ForgeError, match=f"{collision.title()} destination already exists"):
+        plan_import(
+            empty_forge,
+            request(second, plugin="sample-skill", category=None, version="0.2.0"),
+        )
+    assert target.read_text(encoding="utf-8") == "must not be replaced\n"
+
+
+def test_import_refuses_duplicate_skill_name_across_plugins(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    with pytest.raises(ForgeError, match="repository-wide unique"):
+        plan_import(empty_forge, request(skill_source, plugin="other-plugin"))
+
+
+@pytest.mark.parametrize("field", ["category", "description", "author"])
+def test_new_plugin_rejects_blank_required_metadata(skill_source: Path, field: str) -> None:
+    with pytest.raises(ValidationError):
+        request(skill_source, **{field: "   "})
+
+
 def test_name_mismatch_is_not_rewritten(empty_forge: Path, skill_source: Path) -> None:
     (skill_source / "SKILL.md").write_text(
         "---\nname: other-name\ndescription: Mismatch.\n---\n\nDo work.\n",
@@ -89,7 +134,10 @@ def test_apply_rejects_license_changed_after_review(empty_forge: Path, skill_sou
     plan = plan_import(empty_forge, import_request)
     import_request.license_file.write_text("Changed license\n", encoding="utf-8")
     with pytest.raises(ForgeError, match="full-plan hash"):
-        apply_import(empty_forge, replace(import_request, expected_sha256=plan.plan_sha256))
+        apply_import(
+            empty_forge,
+            import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
+        )
 
 
 def test_plan_binds_existing_bundle_license_destination(
@@ -114,16 +162,48 @@ def test_plan_binds_existing_bundle_license_destination(
         license_file=license_a,
     )
     plan_a = plan_import(empty_forge, request_a)
-    request_b = replace(request_a, license_file=license_b, expected_sha256=plan_a.plan_sha256)
+    request_b = request_a.model_copy(
+        update={"license_file": license_b, "expected_sha256": plan_a.plan_sha256}
+    )
     with pytest.raises(ForgeError, match="full-plan hash"):
         apply_import(empty_forge, request_b)
 
 
+def test_plan_binds_existing_destination_state(empty_forge: Path, skill_source: Path) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    second = skill_source.parent / "second-skill"
+    second.mkdir()
+    (second / "SKILL.md").write_text(
+        "---\nname: second-skill\ndescription: Second skill.\n---\n\nDo work.\n",
+        encoding="utf-8",
+    )
+    import_request = request(second, plugin="sample-skill", category=None, version="0.2.0")
+    plan = plan_import(empty_forge, import_request)
+    existing = (
+        empty_forge / "plugins" / "sample-skill" / "skills" / "sample-skill" / "reference.txt"
+    )
+    existing.write_text("changed after review\n", encoding="utf-8")
+    with pytest.raises(ForgeError, match="full-plan hash"):
+        apply_import(
+            empty_forge,
+            import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
+        )
+
+
 def test_import_enforces_spdx_license_expressions(empty_forge: Path, skill_source: Path) -> None:
-    with pytest.raises(ForgeError, match="valid SPDX"):
-        plan_import(empty_forge, request(skill_source, license_id="definitely not SPDX"))
+    with pytest.raises(ValidationError, match="valid SPDX"):
+        request(skill_source, license_id="definitely not SPDX")
     plan = plan_import(empty_forge, request(skill_source, license_id="MIT OR Apache-2.0"))
     assert plan.skill == "sample-skill"
+
+
+@pytest.mark.parametrize(
+    "revision",
+    ["a" * 39, "a" * 41, "a" * 63, "a" * 65, "sha256:" + "a" * 63],
+)
+def test_import_rejects_ambiguous_revision_lengths(skill_source: Path, revision: str) -> None:
+    with pytest.raises(ValidationError, match="full commit/tree ID"):
+        request(skill_source, revision=revision)
 
 
 def test_rejects_version_downgrade(empty_forge: Path, skill_source: Path) -> None:
@@ -138,3 +218,80 @@ def test_rejects_version_downgrade(empty_forge: Path, skill_source: Path) -> Non
         plan_import(
             empty_forge, request(second, plugin="sample-skill", category=None, version="0.9.0")
         )
+
+
+def test_imports_a_lone_skill_file(empty_forge: Path, skill_source: Path) -> None:
+    skill_file = skill_source / "SKILL.md"
+    import_request = request(skill_file)
+    plan = plan_import(empty_forge, import_request)
+    assert plan.source_kind == "skill-file"
+    assert plan.files.keys() == {"SKILL.md"}
+    applied = apply_import(
+        empty_forge,
+        import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
+    )
+    destination = empty_forge / "plugins" / applied.plugin / "skills" / applied.skill
+    assert sorted(path.name for path in destination.iterdir()) == ["SKILL.md"]
+
+
+def test_existing_plugin_source_requires_selection_for_multiple_skills(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    source_plugin = skill_source.parent / "source-plugin"
+    (source_plugin / "skills" / "first-skill").mkdir(parents=True)
+    (source_plugin / "skills" / "second-skill").mkdir()
+    (source_plugin / "plugin.json").write_text("{}\n", encoding="utf-8")
+    for name in ("first-skill", "second-skill"):
+        (source_plugin / "skills" / name / "SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: {name} instructions.\n---\n\nDo work.\n",
+            encoding="utf-8",
+        )
+    with pytest.raises(ForgeError, match="require --source-skill"):
+        plan_import(empty_forge, request(source_plugin))
+    plan = plan_import(
+        empty_forge,
+        request(source_plugin, source_skill="second-skill"),
+    )
+    assert plan.source_kind == "plugin-skill"
+    assert plan.skill == "second-skill"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows does not preserve POSIX executable bits")
+def test_plan_binds_executable_mode(empty_forge: Path, skill_source: Path) -> None:
+    script = skill_source / "run.sh"
+    script.write_text("#!/bin/sh\n", encoding="utf-8")
+    script.chmod(0o644)
+    import_request = request(skill_source)
+    plan = plan_import(empty_forge, import_request)
+    script.chmod(0o755)
+    with pytest.raises(ForgeError, match="full-plan hash"):
+        apply_import(
+            empty_forge,
+            import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
+        )
+
+
+def test_apply_rolls_back_plugin_and_catalog_on_publish_failure(
+    empty_forge: Path,
+    skill_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import_request = request(skill_source)
+    plan = plan_import(empty_forge, import_request)
+    reviewed = import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
+    catalog_before = (empty_forge / "catalog" / "plugins.json").read_bytes()
+    real_replace = importer_module.os.replace
+    calls = 0
+
+    def fail_catalog_publish(source: Path, destination: Path) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("simulated catalog publish failure")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(importer_module.os, "replace", fail_catalog_publish)
+    with pytest.raises(OSError, match="simulated"):
+        apply_import(empty_forge, reviewed)
+    assert not (empty_forge / "plugins" / "sample-skill").exists()
+    assert (empty_forge / "catalog" / "plugins.json").read_bytes() == catalog_before

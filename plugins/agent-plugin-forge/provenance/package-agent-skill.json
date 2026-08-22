@@ -1,7 +1,7 @@
 {
   "skill": "package-agent-skill",
   "origin": "https://github.com/MiguelElGallo/agent-plugin-forge",
-  "revision": "sha256:f6ceda548a5de6f7378171185bfa28209ffc41c1d3137c1d0d117fa4cc9db2f0",
+  "revision": "sha256:62d1ca45445990023398102f6fefb92057246bd7ef5eeec4c60118de5b563d07",
   "sourceSubpath": "plugins/agent-plugin-forge/skills/package-agent-skill",
   "importedAt": "2026-08-21",
   "license": "MIT",
@@ -9,10 +9,14 @@
     "path": "LICENSE",
     "sha256": "6a55b8c7a99caa57772f912232a4cd9e5e148dfc453776e0b1c0998734947b78"
   },
-  "contentSha256": "f6ceda548a5de6f7378171185bfa28209ffc41c1d3137c1d0d117fa4cc9db2f0",
+  "contentSha256": "62d1ca45445990023398102f6fefb92057246bd7ef5eeec4c60118de5b563d07",
   "files": {
-    "SKILL.md": "a9d4e20e275e35a0dd6890b5831eb8ba52b1a121a90ba2ea45082034a2861dca",
-    "references/intake.md": "6849fc98ac7af51326edcd83cd479af9d2236e24f721196291dc4cb102e0aded"
+    "SKILL.md": "d4b097ee93dabf06c064a70f73eb6fcc2be264819448cbf503ecc776d96be5c4",
+    "references/intake.md": "4146e6158f019937a0bd9e3f60992fd4910f79af072b1698b6fa1db32a52dd89"
+  },
+  "fileModes": {
+    "SKILL.md": false,
+    "references/intake.md": false
   },
   "transformations": [
     "Created natively for Agent Plugin Forge"

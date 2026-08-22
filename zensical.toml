@@ -1,6 +1,6 @@
 [project]
 site_name = "Agent Plugin Forge"
-site_description = "Package Agent Skills as reviewed Agent Plugins 1.0 distributions."
+site_description = "Package Agent Skills and MCP servers as reviewed Agent Plugins 1.0 distributions in VS Code."
 site_author = "MiguelElGallo"
 site_url = "https://miguelelgallo.github.io/agent-plugin-forge/"
 repo_url = "https://github.com/MiguelElGallo/agent-plugin-forge"
@@ -10,13 +10,19 @@ copyright = "Copyright &copy; 2026 MiguelElGallo"
 nav = [
   { "Start" = "index.md" },
   { "Tutorial" = [
-    { "Package your first skill" = "tutorials/first-skill.md" },
+    { "Prepare VS Code" = "tutorials/prepare-vscode.md" },
+    { "Import your first skill" = "tutorials/first-skill.md" },
+    { "Generate and test" = "tutorials/review-generate.md" },
+    { "Load in VS Code" = "tutorials/use-in-vscode.md" },
+    { "Add an MCP server" = "tutorials/add-mcp.md" },
   ] },
   { "How-to" = [
     { "Import an existing skill" = "how-to/import-skill.md" },
     { "Create a skill" = "how-to/create-skill.md" },
     { "Add to a bundle" = "how-to/bundle-skill.md" },
+    { "Add MCP" = "how-to/add-mcp.md" },
     { "Open and merge a PR" = "how-to/pull-request.md" },
+    { "Validate and release" = "how-to/validate-release.md" },
   ] },
   { "Reference" = [
     { "CLI" = "reference/cli.md" },
@@ -26,9 +32,6 @@ nav = [
   { "Explanation" = [
     { "Architecture" = "explanation/architecture.md" },
     { "Trust model" = "explanation/trust-model.md" },
-  ] },
-  { "Maintainers" = [
-    { "Validation and release" = "maintainers/validation.md" },
   ] },
 ]
 

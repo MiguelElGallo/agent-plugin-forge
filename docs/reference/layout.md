@@ -2,19 +2,20 @@
 
 ```text
 plugins/<plugin>/
-├── plugin.json
-├── skills/<skill>/SKILL.md
-├── LICENSE / licenses/      distributed license evidence
-└── provenance/<skill>.json
+├── plugin.json                       portable closed manifest
+├── skills/<skill>/SKILL.md           optional, immediate children only
+├── mcp.json                          optional portable MCP configuration
+├── server.py / bin/ / config/        optional packaged MCP runtime files
+├── LICENSE / LICENSES/ / licenses/   distributed license evidence
+└── provenance/<skill>.json           one record per imported skill
 
+catalog/plugins.json                  category and compatibility policy
 .github/plugin/marketplace.json       generated Copilot marketplace
 .agents/plugins/marketplace.json      generated Codex marketplace
-compat/codex/plugins/                 generated Codex wrappers
-catalog/plugins.json                  distribution category and policy
-schemas/agent-plugins/1.0.0/          vendored validation schemas
-schemas/codex/current/                pinned forge compatibility contract
+schemas/agent-plugins/1.0.0/          pinned portable schemas
+examples/tutorial/                    runnable documentation inputs
 ```
 
-Agent Plugins discovers only immediate child skills under `skills/`. Categories therefore live in the catalog rather than in nested package directories.
+Agent Plugins discovers only immediate directories under `skills/` and only root `mcp.json`. Category is marketplace taxonomy, never a nesting level.
 
-Version 0.1 is deliberately skills-only. A package containing `mcp.json` fails validation until portable-to-Codex MCP translation is implemented and independently tested.
+Portable packages may be skill-only, MCP-only, or mixed. A useful forge package must expose at least one skill or one non-empty MCP server. Both generated marketplace indexes point directly to these portable packages.

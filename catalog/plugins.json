@@ -6,8 +6,8 @@
       "name": "MiguelElGallo",
       "email": "miguel.zurcher@gmail.com"
     },
-    "description": "Reviewed Agent Skills packaged for the Agent Plugins 1.0 standard.",
-    "version": "0.1.0"
+    "description": "Reviewed Agent Skills and MCP servers packaged for Agent Plugins 1.0.",
+    "version": "0.2.0"
   },
   "plugins": [
     {
