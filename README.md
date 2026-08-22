@@ -1,8 +1,18 @@
 # Agent Plugin Forge
 
+[![CI](https://github.com/MiguelElGallo/agent-plugin-forge/actions/workflows/check.yml/badge.svg?branch=main)](https://github.com/MiguelElGallo/agent-plugin-forge/actions/workflows/check.yml)
+[![Documentation](https://github.com/MiguelElGallo/agent-plugin-forge/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/MiguelElGallo/agent-plugin-forge/actions/workflows/docs.yml)
+[![Tested platforms](https://img.shields.io/badge/tested-Ubuntu%20%7C%20macOS%20%7C%20Windows-555)](https://github.com/MiguelElGallo/agent-plugin-forge/actions/workflows/check.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**Documentation:** [Read the Agent Plugin Forge documentation](https://miguelelgallo.github.io/agent-plugin-forge/).
+
 Install the Forge once, give your coding agent a skill, approve its review plan, and publish a portable [Agent Plugins 1.0](https://agent-plugins.org/) package for Visual Studio Code, GitHub Copilot, and Codex.
 
 You do **not** need to clone this repository to use the Forge.
+
+The CI workflow runs linting, formatting, type checking, Forge validation, and a strict documentation build on Ubuntu. The pytest suite runs on Ubuntu, macOS, and Windows.
 
 ## 1. Install Agent Plugin Forge
 
