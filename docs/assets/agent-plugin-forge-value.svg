@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Agent Plugin Forge makes a Git repository your team's shared catalog</title>
+  <desc id="desc">Agent Plugins provides an open shared format supported by VS Code, GitHub Copilot, and Codex. Agent Plugin Forge helps a team choose a Git repository, add reviewed Skills, and reuse them from one shared catalog.</desc>
+  <defs>
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#183044" flood-opacity=".08"/></filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#416B80"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.eyebrow{font-size:16px;font-weight:720;letter-spacing:2.4px}.hero{font-size:56px;font-weight:700;letter-spacing:-1.7px}.lead{font-size:21px;font-weight:430}.label{font-size:14px;font-weight:720;letter-spacing:1.6px}.h2{font-size:29px;font-weight:680;letter-spacing:-.5px}.h3{font-size:20px;font-weight:660}.copy{font-size:16px;font-weight:430}.small{font-size:14px;font-weight:460}.step-title{font-size:20px;font-weight:670}.step-copy{font-size:15px;font-weight:430}
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#F4F6F3"/>
+  <path d="M0 312H1920M0 820H1920" stroke="#DCE2E1" stroke-width="1"/>
+
+  <!-- Brand and premise -->
+  <g transform="translate(80 54)">
+    <rect width="42" height="42" rx="6" fill="#183044"/>
+    <path d="M11 15h20M11 21h20M11 27h13" stroke="#F4F6F3" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="58" y="28" fill="#183044" font-size="20" font-weight="700">AGENT PLUGIN FORGE</text>
+  </g>
+  <text x="80" y="142" fill="#5F7F78" class="eyebrow">THE SHARED FORMAT IS HERE</text>
+  <text x="80" y="207" fill="#183044" class="hero">One catalog for your team’s agent skills.</text>
+  <text x="80" y="252" fill="#526575" class="lead">Agent Plugins gives VS Code, Copilot and Codex one shared way to package and share Skills and tools.</text>
+  <text x="80" y="282" fill="#526575" class="lead">Agent Plugin Forge helps your people and agents put that standard to work.</text>
+
+  <!-- Existing foundation -->
+  <g transform="translate(1115 66)">
+    <rect width="725" height="192" rx="16" fill="#FFFFFF" stroke="#CBD6D6" stroke-width="1.5"/>
+    <g transform="translate(28 26)">
+      <circle cx="31" cy="31" r="31" fill="#E3ECE9"/>
+      <path d="M18 24h26v22H18zm6-7h14v7H24" fill="none" stroke="#315D67" stroke-width="3" stroke-linejoin="round"/>
+      <text x="82" y="25" fill="#183044" class="h3">Agent Plugins 1.0</text>
+      <text x="82" y="51" fill="#647580" class="small">An open format for Skills and tools</text>
+    </g>
+    <path d="M28 102H697" stroke="#E3E8E7"/>
+    <text x="28" y="132" fill="#71817F" class="label">SUPPORTED BY THE TOOLS YOUR TEAM ALREADY USES</text>
+    <g transform="translate(28 146)">
+      <rect width="188" height="32" rx="16" fill="#EEF2F2"/><circle cx="18" cy="16" r="7" fill="#416B80"/><text x="34" y="21" fill="#294354" class="small" font-weight="620">VS Code</text>
+      <rect x="204" width="188" height="32" rx="16" fill="#EEF2F2"/><circle cx="222" cy="16" r="7" fill="#416B80"/><text x="238" y="21" fill="#294354" class="small" font-weight="620">Copilot</text>
+      <rect x="408" width="188" height="32" rx="16" fill="#EEF2F2"/><circle cx="426" cy="16" r="7" fill="#416B80"/><text x="442" y="21" fill="#294354" class="small" font-weight="620">Codex</text>
+    </g>
+  </g>
+
+  <!-- Team work -->
+  <g transform="translate(80 370)">
+    <text fill="#71817F" class="label">YOUR TEAM’S BEST WORK</text>
+    <g transform="translate(0 48)">
+      <rect width="350" height="88" rx="12" fill="#FFFFFF" stroke="#D1DADB"/>
+      <rect x="18" y="18" width="52" height="52" rx="8" fill="#E9EEEF"/>
+      <path d="M31 32h26M31 40h26M31 48h16" stroke="#416B80" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="88" y="38" fill="#183044" class="h3">A useful Skill</text><text x="88" y="63" fill="#71817F" class="small">In a project repository</text>
+    </g>
+    <g transform="translate(0 150)">
+      <rect width="350" height="88" rx="12" fill="#FFFFFF" stroke="#D1DADB"/>
+      <rect x="18" y="18" width="52" height="52" rx="8" fill="#E9EEEF"/>
+      <circle cx="34" cy="44" r="5" fill="none" stroke="#416B80" stroke-width="2.5"/><circle cx="54" cy="34" r="5" fill="none" stroke="#416B80" stroke-width="2.5"/><circle cx="54" cy="55" r="5" fill="none" stroke="#416B80" stroke-width="2.5"/><path d="m39 41 10-5m-10 11 10 6" stroke="#416B80" stroke-width="2.5"/>
+      <text x="88" y="38" fill="#183044" class="h3">A useful tool</text><text x="88" y="63" fill="#71817F" class="small">Already helping one person</text>
+    </g>
+    <g transform="translate(0 252)">
+      <rect width="350" height="88" rx="12" fill="#FFFFFF" stroke="#D1DADB"/>
+      <rect x="18" y="18" width="52" height="52" rx="8" fill="#E9EEEF"/>
+      <circle cx="44" cy="37" r="9" fill="none" stroke="#416B80" stroke-width="2.5"/><path d="M28 63c4-14 28-14 32 0" fill="none" stroke="#416B80" stroke-width="2.5"/>
+      <text x="88" y="38" fill="#183044" class="h3">A teammate’s method</text><text x="88" y="63" fill="#71817F" class="small">Worth sharing with everyone</text>
+    </g>
+  </g>
+
+  <!-- Forge as enabler -->
+  <path d="M450 586H555" fill="none" stroke="#416B80" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <g transform="translate(575 401)" filter="url(#soft-shadow)">
+    <rect width="420" height="360" rx="18" fill="#183044"/>
+    <rect x="28" y="28" width="54" height="54" rx="8" fill="#F4F6F3"/>
+    <path d="M41 43h28M41 51h28M41 59h18" stroke="#315D67" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="100" y="50" fill="#FFFFFF" class="h3">Agent Plugin Forge</text>
+    <text x="100" y="74" fill="#B9C7CC" class="small">Works with the agent you already use</text>
+    <path d="M28 106H392" stroke="#385063"/>
+    <text x="28" y="142" fill="#DDE6E8" class="copy">Give your agent a Skill to share.</text>
+    <g transform="translate(28 169)"><circle cx="12" cy="12" r="12" fill="#D9E5E1"/><text x="12" y="17" fill="#315D67" font-size="13" font-weight="760" text-anchor="middle">1</text><text x="38" y="18" fill="#FFFFFF" class="copy">It prepares the addition</text></g>
+    <g transform="translate(28 217)"><circle cx="12" cy="12" r="12" fill="#D9E5E1"/><text x="12" y="17" fill="#315D67" font-size="13" font-weight="760" text-anchor="middle">2</text><text x="38" y="18" fill="#FFFFFF" class="copy">You check what will be shared</text></g>
+    <g transform="translate(28 265)"><circle cx="12" cy="12" r="12" fill="#D9E5E1"/><text x="12" y="17" fill="#315D67" font-size="13" font-weight="760" text-anchor="middle">3</text><text x="38" y="18" fill="#FFFFFF" class="copy">You approve when it is ready</text></g>
+    <rect x="28" y="316" width="364" height="1" fill="#385063"/>
+    <text x="28" y="343" fill="#9FB2BA" class="small">The Forge organises and checks the contribution.</text>
+  </g>
+
+  <!-- Chosen repository becomes catalog -->
+  <path d="M1018 586H1123" fill="none" stroke="#416B80" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <g transform="translate(1143 370)" filter="url(#soft-shadow)">
+    <rect width="697" height="422" rx="18" fill="#FFFFFF" stroke="#BFCBCC" stroke-width="1.5"/>
+    <g transform="translate(28 28)">
+      <path d="M0 15h24l10 10h44v52H0z" fill="#E3ECE9" stroke="#6D8D86" stroke-width="1.5"/>
+      <text x="100" y="28" fill="#71817F" class="label">THE GIT REPOSITORY YOU CHOOSE</text>
+      <text x="100" y="63" fill="#183044" class="h2">Your team’s shared catalog</text>
+    </g>
+    <path d="M28 131H669" stroke="#DCE2E1"/>
+    <g transform="translate(28 160)">
+      <text fill="#71817F" class="label">SHARED WITH YOUR TEAM</text>
+      <g transform="translate(0 32)"><rect width="641" height="62" rx="10" fill="#F3F6F5"/><rect x="14" y="14" width="34" height="34" rx="6" fill="#DCE8E4"/><path d="M23 24h16M23 30h16M23 36h10" stroke="#416B80" stroke-width="2"/><text x="66" y="28" fill="#183044" class="copy" font-weight="620">Data quality checks</text><text x="66" y="48" fill="#71817F" class="small">Skill</text><text x="608" y="38" fill="#5F7F78" font-size="21" text-anchor="middle">✓</text></g>
+      <g transform="translate(0 106)"><rect width="641" height="62" rx="10" fill="#F3F6F5"/><rect x="14" y="14" width="34" height="34" rx="6" fill="#DCE8E4"/><circle cx="25" cy="31" r="4" fill="none" stroke="#416B80" stroke-width="2"/><circle cx="38" cy="24" r="4" fill="none" stroke="#416B80" stroke-width="2"/><circle cx="38" cy="39" r="4" fill="none" stroke="#416B80" stroke-width="2"/><text x="66" y="28" fill="#183044" class="copy" font-weight="620">Project knowledge</text><text x="66" y="48" fill="#71817F" class="small">Skill + tool</text><text x="608" y="38" fill="#5F7F78" font-size="21" text-anchor="middle">✓</text></g>
+      <g transform="translate(0 180)"><rect width="641" height="62" rx="10" fill="#F3F6F5"/><rect x="14" y="14" width="34" height="34" rx="6" fill="#DCE8E4"/><path d="M23 24h16M23 30h16M23 36h10" stroke="#416B80" stroke-width="2"/><text x="66" y="28" fill="#183044" class="copy" font-weight="620">Release guidance</text><text x="66" y="48" fill="#71817F" class="small">Skill</text><text x="608" y="38" fill="#5F7F78" font-size="21" text-anchor="middle">✓</text></g>
+    </g>
+  </g>
+
+  <!-- Connected 1-2-3 outcome -->
+  <g transform="translate(80 862)">
+    <path d="M40 36H1680" stroke="#CAD4D3" stroke-width="2"/>
+    <g transform="translate(0 0)"><circle cx="40" cy="36" r="31" fill="#315D67"/><text x="40" y="44" fill="#FFFFFF" font-size="22" font-weight="730" text-anchor="middle">1</text><text x="90" y="28" fill="#183044" class="step-title">Choose your catalog</text><text x="90" y="54" fill="#647580" class="step-copy">Pick the Git repository your team controls.</text></g>
+    <g transform="translate(590 0)"><circle cx="40" cy="36" r="31" fill="#315D67"/><text x="40" y="44" fill="#FFFFFF" font-size="22" font-weight="730" text-anchor="middle">2</text><text x="90" y="28" fill="#183044" class="step-title">Add a Skill to the catalog</text><text x="90" y="54" fill="#647580" class="step-copy">Your agent prepares it. You check and approve.</text></g>
+    <g transform="translate(1180 0)"><circle cx="40" cy="36" r="31" fill="#5F7F78"/><text x="40" y="44" fill="#FFFFFF" font-size="22" font-weight="730" text-anchor="middle">3</text><text x="90" y="28" fill="#183044" class="step-title">Use it together</text><text x="90" y="54" fill="#647580" class="step-copy">People and agents install from the same catalog.</text></g>
+  </g>
+  <g transform="translate(80 981)">
+    <rect width="1760" height="56" rx="8" fill="#E4ECE9"/>
+    <text x="880" y="35" fill="#315D67" font-size="18" font-weight="620" text-anchor="middle">One repository · many contributors · the same Skills in VS Code, Copilot and Codex</text>
+  </g>
+</svg>

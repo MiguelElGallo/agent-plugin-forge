@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Agent Plugin Forge — One shared catalog</title>
+  <style>
+    :root{color-scheme:light;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f6f3;--ink:#183044;--blue:#315d67;--sage:#5f7f78;--line:#ccd6d5;--muted:#647580;--paper:#fff;--duration:28s}
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#f4f6f3;color:var(--ink)}
+    .stage{position:relative;width:100vw;height:56.25vw;max-height:100vh;max-width:177.7778vh;top:50%;left:50%;transform:translate(-50%,-50%);overflow:hidden;background:#f4f6f3}
+    .stage::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 49.95%,#dfe5e3 50%,transparent 50.05%),linear-gradient(transparent 49.9%,#dfe5e3 50%,transparent 50.1%);opacity:.38}
+    .brand{position:absolute;left:4.2%;top:4.4%;display:flex;align-items:center;gap:14px;z-index:20;font-size:18px;font-weight:720;letter-spacing:.2px;animation:chromeVisibility var(--duration) infinite}.brandMark{display:grid;place-items:center;width:39px;height:39px;border-radius:6px;background:var(--ink)}.brandMark span{width:21px;height:2px;background:#f4f6f3;box-shadow:0 6px #f4f6f3,0 -6px #f4f6f3;border-radius:2px}
+    .timeline{position:absolute;right:4.2%;top:4.7%;display:flex;align-items:center;gap:9px;z-index:20;animation:chromeVisibility var(--duration) infinite}.tick{display:grid;place-items:center;width:29px;height:29px;border:1px solid #bcc9c8;border-radius:50%;color:#768684;background:#f4f6f3;font-size:12px;font-weight:700}.tick::after{content:"";position:absolute;width:0;height:0}.tick1{animation:tick1 var(--duration) infinite}.tick2{animation:tick2 var(--duration) infinite}.tick3{animation:tick3 var(--duration) infinite}.tick4{animation:tick4 var(--duration) infinite}.tick5{animation:tick5 var(--duration) infinite}.tickLine{width:25px;height:1px;background:#ccd6d5}
+    .scene{position:absolute;inset:0;padding:150px 82px 90px;opacity:0;pointer-events:none}.scene.active{pointer-events:auto}.scene1{animation:scene1 var(--duration) ease-in-out infinite}.scene2{animation:scene2 var(--duration) ease-in-out infinite}.scene3{animation:scene3 var(--duration) ease-in-out infinite}.scene4{padding:0;animation:scene4 var(--duration) ease-in-out infinite}.scene5{padding:0;animation:scene5 var(--duration) ease-in-out infinite}
+    .split{height:100%;display:grid;grid-template-columns:.86fr 1.14fr;gap:70px;align-items:center}.stepLabel{display:flex;align-items:center;gap:14px;margin-bottom:28px;color:var(--sage);font-size:15px;font-weight:740;letter-spacing:2px}.stepNum{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--blue);color:#fff;font-size:17px;letter-spacing:0}.copy h1{max-width:680px;margin:0 0 22px;font-size:56px;line-height:1.04;letter-spacing:-2px;font-weight:700}.copy p{max-width:620px;margin:0;font-size:22px;line-height:1.48;color:#526575}.copy .aside{margin-top:30px;padding-left:18px;border-left:3px solid #9bb3ad;color:#5f706f;font-size:17px;line-height:1.5}
+    .window{position:relative;border:1.5px solid #becbcb;border-radius:17px;background:#fff;box-shadow:0 18px 50px rgba(24,48,68,.10);overflow:hidden}.titlebar{height:54px;display:flex;align-items:center;gap:8px;padding:0 20px;background:#eef2f1;border-bottom:1px solid #d8e0df}.dot{width:10px;height:10px;border-radius:50%;background:#b8c5c3}.windowTitle{margin-left:11px;color:#60716f;font-size:13px;font-weight:620}.body{padding:30px}
+    .palette{border:1px solid #b7c6c5;border-radius:10px;background:#fff;box-shadow:0 12px 28px rgba(24,48,68,.12);overflow:hidden}.search{display:flex;align-items:center;gap:12px;height:54px;padding:0 17px;border-bottom:1px solid #dce3e2;color:#738380;font-size:15px}.searchIcon{width:15px;height:15px;border:2px solid #6f807d;border-radius:50%;position:relative}.searchIcon::after{content:"";position:absolute;width:7px;height:2px;background:#6f807d;right:-5px;bottom:-3px;transform:rotate(45deg)}.command{display:flex;align-items:center;gap:15px;padding:16px 18px;background:#e7efed;color:#183044;font-size:16px;font-weight:620}.commandIcon{display:grid;place-items:center;width:28px;height:28px;border-radius:5px;background:#315d67;color:#fff;font-size:13px}.sourceBox{margin-top:24px;padding:18px;border:1px solid #c7d2d1;border-radius:10px;background:#f8faf9}.sourceLabel{margin-bottom:9px;color:#758582;font-size:12px;font-weight:720;letter-spacing:1.2px}.url{font:500 15px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#294354;white-space:nowrap}.installSuccess{display:flex;align-items:center;gap:14px;margin-top:24px;padding:17px 19px;border-radius:10px;background:#e2ece8;color:#294f54;font-size:16px;font-weight:650}.check{display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:#5f7f78;color:#fff;font-size:17px}
+    .sourceBox{animation:sourceIn var(--duration) infinite}.installSuccess{animation:successIn var(--duration) infinite}.command{animation:commandPulse var(--duration) infinite}
+    .promptWindow{max-width:1280px;margin:15px auto 0}.chatTop{display:flex;align-items:center;justify-content:space-between;padding:20px 26px;border-bottom:1px solid #dce3e2}.agentName{display:flex;align-items:center;gap:12px;font-size:16px;font-weight:670}.agentIcon{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:#183044;color:#fff;font-size:15px}.ready{display:flex;align-items:center;gap:8px;color:#627673;font-size:13px}.readyDot{width:8px;height:8px;border-radius:50%;background:#6f938a}.messages{padding:38px 48px 32px}.userBubble{margin-left:auto;max-width:990px;padding:25px 28px;border-radius:18px 18px 4px 18px;background:#e4ece9;color:#183044;font:500 19px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 8px 22px rgba(24,48,68,.06);animation:promptIn var(--duration) infinite}.agentReply{display:flex;align-items:center;gap:17px;margin-top:30px;max-width:780px;padding:20px 22px;border-left:3px solid #5f7f78;background:#f5f7f6;color:#294354;font-size:17px;line-height:1.45;animation:replyIn var(--duration) infinite}.replyCheck{display:grid;place-items:center;flex:none;width:35px;height:35px;border-radius:50%;background:#5f7f78;color:#fff}.plainFlow{display:flex;justify-content:center;align-items:center;gap:13px;margin-top:30px;color:#627572;font-size:14px;font-weight:650;animation:flowIn var(--duration) infinite}.flowPill{padding:9px 16px;border:1px solid #c5d1d0;border-radius:18px;background:#fff}.flowArrow{color:#8fa09d}
+    .catalogWindow{max-width:1290px;margin:8px auto 0}.catalogHeader{display:flex;align-items:center;justify-content:space-between;padding:26px 30px;border-bottom:1px solid #dce3e2}.catalogHeader h2{margin:0;font-size:25px}.catalogHeader p{margin:5px 0 0;color:#71817f;font-size:14px}.catalogSearch{width:310px;padding:12px 15px;border:1px solid #c9d4d3;border-radius:8px;color:#85918f;font-size:14px}.catalogBody{padding:28px 30px 32px}.pluginRow{display:grid;grid-template-columns:52px 1fr 155px;align-items:center;gap:18px;padding:18px;border:1px solid #d7dfde;border-radius:11px;background:#fff}.pluginRow+.pluginRow{margin-top:13px}.pluginIcon{display:grid;place-items:center;width:48px;height:48px;border-radius:8px;background:#e4ece9;color:#315d67;font-size:20px;font-weight:700}.pluginName{font-size:17px;font-weight:660}.pluginMeta{margin-top:4px;color:#758582;font-size:13px}.installButton{justify-self:end;width:128px;padding:11px;border:1px solid #315d67;border-radius:7px;background:#315d67;color:#fff;font-size:14px;font-weight:670;text-align:center}.pluginRow:nth-child(1) .installButton{animation:installButton var(--duration) infinite}.clients{display:flex;justify-content:center;gap:18px;margin-top:24px}.client{display:flex;align-items:center;gap:9px;padding:9px 15px;border-radius:18px;background:#edf2f1;color:#405966;font-size:13px;font-weight:630}.clientDot{width:8px;height:8px;border-radius:50%;background:#416b80}
+    .diagram{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#f4f6f3}
+    .standardBackdrop{position:absolute;inset:0;background:rgba(244,246,243,.88);backdrop-filter:blur(7px)}.standardCard{position:absolute;left:50%;top:50%;width:1040px;transform:translate(-50%,-50%);padding:58px 64px;border:1.5px solid #bdcbca;border-radius:18px;background:#fff;box-shadow:0 22px 60px rgba(24,48,68,.12);text-align:center}.standardIcon{display:grid;place-items:center;width:70px;height:70px;margin:0 auto 25px;border-radius:12px;background:#e3ece9}.standardIcon svg{width:38px;height:38px}.standardCard .overline{color:#5f7f78;font-size:15px;font-weight:760;letter-spacing:2px}.standardCard h1{margin:15px 0 17px;color:#183044;font-size:49px;letter-spacing:-1.4px}.standardCard p{max-width:790px;margin:0 auto;color:#526575;font-size:21px;line-height:1.48}.support{display:flex;justify-content:center;gap:16px;margin-top:31px}.support span{padding:10px 18px;border-radius:20px;background:#edf2f1;color:#31515f;font-size:14px;font-weight:650}.openLine{margin-top:28px;color:#758582;font-size:13px;letter-spacing:.4px}
+    .controls{position:absolute;right:4.2%;bottom:3%;display:flex;gap:9px;z-index:30}.controls button{padding:8px 13px;border:1px solid #b9c7c6;border-radius:18px;background:rgba(255,255,255,.9);color:#536764;font:650 11px/1 Inter,sans-serif;letter-spacing:.8px;cursor:pointer}.progress{position:absolute;left:4.2%;right:4.2%;bottom:1.5%;height:3px;background:#d2dcda;z-index:30}.progress::after{content:"";display:block;height:100%;background:#315d67;transform-origin:left;animation:progress var(--duration) linear infinite}.stage *{animation-delay:var(--seek,0s)!important}.paused *{animation-play-state:paused!important}
+    @keyframes scene1{0%,1%{opacity:0;transform:translateY(18px)}3%,17%{opacity:1;transform:none}20%,100%{opacity:0;transform:translateY(-14px)}}
+    @keyframes scene2{0%,17%{opacity:0;transform:translateY(18px)}20%,40%{opacity:1;transform:none}43%,100%{opacity:0;transform:translateY(-14px)}}
+    @keyframes scene3{0%,40%{opacity:0;transform:translateY(18px)}43%,57%{opacity:1;transform:none}60%,100%{opacity:0;transform:translateY(-14px)}}
+    @keyframes scene4{0%,57%{opacity:0;transform:scale(.985)}60%,77%{opacity:1;transform:scale(1)}80%,100%{opacity:0;transform:scale(1.01)}}
+    @keyframes scene5{0%,77%{opacity:0}81%,97%{opacity:1}100%{opacity:0}}
+    @keyframes sourceIn{0%,7%{opacity:0;transform:translateY(8px)}9%,100%{opacity:1;transform:none}}@keyframes successIn{0%,12%{opacity:0;transform:translateY(8px)}14%,100%{opacity:1;transform:none}}@keyframes commandPulse{0%,4%,100%{background:#e7efed}7%{background:#d4e2de}}
+    @keyframes promptIn{0%,22%{opacity:0;transform:translateY(12px)}25%,100%{opacity:1;transform:none}}@keyframes replyIn{0%,31%{opacity:0;transform:translateY(10px)}34%,100%{opacity:1;transform:none}}
+    @keyframes flowIn{0%,34%{opacity:0;transform:translateY(6px)}37%,100%{opacity:1;transform:none}}@keyframes installButton{0%,47%{background:#315d67;color:#fff}50%,100%{background:#e3ece9;color:#315d67;border-color:#a9bdb8}}@keyframes progress{from{transform:scaleX(0)}to{transform:scaleX(1)}}@keyframes chromeVisibility{0%,57%{opacity:1}60%,78%{opacity:0}81%,100%{opacity:1}}
+    @keyframes tick1{0%,19%{background:#315d67;color:#fff;border-color:#315d67}22%,100%{background:#f4f6f3;color:#768684}}@keyframes tick2{0%,18%{background:#f4f6f3;color:#768684}21%,42%{background:#315d67;color:#fff;border-color:#315d67}45%,100%{background:#f4f6f3;color:#768684}}@keyframes tick3{0%,41%{background:#f4f6f3;color:#768684}44%,59%{background:#315d67;color:#fff;border-color:#315d67}62%,100%{background:#f4f6f3;color:#768684}}@keyframes tick4{0%,58%{background:#f4f6f3;color:#768684}61%,79%{background:#315d67;color:#fff;border-color:#315d67}82%,100%{background:#f4f6f3;color:#768684}}@keyframes tick5{0%,78%{background:#f4f6f3;color:#768684}81%,100%{background:#5f7f78;color:#fff;border-color:#5f7f78}}
+    @media(max-width:900px){.scene{padding:100px 38px 70px}.split{grid-template-columns:1fr;gap:25px}.copy h1{font-size:35px}.copy p{font-size:16px}.copy .aside{display:none}.window{max-height:52vh}.body{padding:18px}.brand{left:3%;top:3%;font-size:14px}.timeline{display:none}.standardCard{width:86%;padding:32px}.standardCard h1{font-size:32px}.standardCard p{font-size:16px}.support{flex-wrap:wrap}.controls{display:none}}
+    @media(prefers-reduced-motion:reduce){.scene1,.scene2,.scene3,.scene5{display:none}.scene4{animation:none;opacity:1}.progress::after{animation:none}}
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage" aria-label="Agent Plugin Forge animated journey">
+    <div class="brand"><div class="brandMark"><span></span></div>AGENT PLUGIN FORGE</div>
+    <div class="timeline" aria-hidden="true"><div class="tick tick1">1</div><div class="tickLine"></div><div class="tick tick2">2</div><div class="tickLine"></div><div class="tick tick3">3</div><div class="tickLine"></div><div class="tick tick4">4</div><div class="tickLine"></div><div class="tick tick5">5</div></div>
+
+    <section class="scene scene1">
+      <div class="split">
+        <div class="copy"><div class="stepLabel"><span class="stepNum">1</span>INSTALL ONCE</div><h1>Install the Forge in VS Code.</h1><p>Open one command, paste the repository address and confirm. The publishing Skill is ready for your agent.</p><div class="aside">No clone. No settings file. No setup project.</div></div>
+        <div class="window">
+          <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="windowTitle">Visual Studio Code</span></div>
+          <div class="body">
+            <div class="palette"><div class="search"><span class="searchIcon"></span>Chat: Install Plugin from Source</div><div class="command"><span class="commandIcon">›</span>Chat: Install Plugin from Source</div></div>
+            <div class="sourceBox"><div class="sourceLabel">PLUGIN SOURCE</div><div class="url">https://github.com/MiguelElGallo/agent-plugin-forge</div></div>
+            <div class="installSuccess"><span class="check">✓</span>Agent Plugin Forge is installed and ready</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scene scene2">
+      <div class="stepLabel" style="justify-content:center"><span class="stepNum">2</span>ONE PROMPT</div>
+      <div class="copy" style="text-align:center"><h1 style="max-width:none;font-size:48px">Tell your agent which Skill to share.</h1><p style="max-width:none">Your existing Skill is checked and prepared for the shared catalog.</p></div>
+      <div class="window promptWindow">
+        <div class="chatTop"><div class="agentName"><span class="agentIcon">A</span>Your coding agent</div><div class="ready"><span class="readyDot"></span>Forge Skill available</div></div>
+        <div class="messages">
+          <div class="userBubble">My skill is at /absolute/path/to/my-skill. Review it and prepare it for publication through Agent Plugin Forge. Stop after the review plan and ask me before publishing.</div>
+          <div class="agentReply"><span class="replyCheck">✓</span><span>The Skill has been checked. The review plan is ready for your approval.</span></div>
+          <div class="plainFlow"><span class="flowPill">Checked</span><span class="flowArrow">→</span><span class="flowPill">You approve</span><span class="flowArrow">→</span><span class="flowPill">Added to the catalog</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scene scene3">
+      <div class="stepLabel" style="justify-content:center"><span class="stepNum">3</span>ONE SHARED SOURCE</div>
+      <div class="copy" style="text-align:center"><h1 style="max-width:none;font-size:48px">Install from the team catalog.</h1><p style="max-width:none">People and agents find the same reviewed Skills in the tools they already use.</p></div>
+      <div class="window catalogWindow">
+        <div class="catalogHeader"><div><h2>Team catalog</h2><p>Skills shared by your team</p></div><div class="catalogSearch">Search Skills…</div></div>
+        <div class="catalogBody">
+          <div class="pluginRow"><div class="pluginIcon">≡</div><div><div class="pluginName">Data quality checks</div><div class="pluginMeta">Shared by the data platform team</div></div><div class="installButton">✓ Installed</div></div>
+          <div class="pluginRow"><div class="pluginIcon">○</div><div><div class="pluginName">Project knowledge</div><div class="pluginMeta">Shared by the architecture team</div></div><div class="installButton">Install</div></div>
+          <div class="clients"><span class="client"><span class="clientDot"></span>VS Code</span><span class="client"><span class="clientDot"></span>Copilot</span><span class="client"><span class="clientDot"></span>Codex</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scene scene4"><img class="diagram" src="agent-plugin-forge-value.svg" alt="One catalog for your team's agent skills"></section>
+
+    <section class="scene scene5">
+      <img class="diagram" src="agent-plugin-forge-value.svg" alt="Agent Plugin Forge value diagram">
+      <div class="standardBackdrop"></div>
+      <div class="standardCard">
+        <div class="standardIcon"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 15h15l6 6h11v20H8z" fill="none" stroke="#315d67" stroke-width="3" stroke-linejoin="round"/><path d="M15 9h18v12" fill="none" stroke="#315d67" stroke-width="3" stroke-linecap="round"/></svg></div>
+        <div class="overline">POWERED BY AN OPEN STANDARD</div>
+        <h1>Agent Plugins 1.0</h1>
+        <p>An open way to package Skills and tools so VS Code, Copilot, Codex and other AI agents can find and use them in the same way.</p>
+        <div class="support"><span>VS Code</span><span>GitHub Copilot</span><span>ChatGPT &amp; Codex</span></div>
+        <div class="openLine">Developed in public with maintainers from Amazon, Cursor, Microsoft, OpenAI and Vercel.</div>
+      </div>
+    </section>
+
+    <div class="controls"><button id="toggle" type="button">PAUSE</button><button id="restart" type="button">RESTART</button></div><div class="progress" aria-hidden="true"></div>
+  </main>
+  <script>const s=document.getElementById('stage'),t=document.getElementById('toggle'),seek=new URLSearchParams(location.search).get('t');if(seek!==null){s.style.setProperty('--seek',`-${Number(seek)}s`);s.classList.add('paused');t.textContent='PLAY'}t.addEventListener('click',()=>{s.classList.toggle('paused');t.textContent=s.classList.contains('paused')?'PLAY':'PAUSE'});document.getElementById('restart').addEventListener('click',()=>{s.style.setProperty('--seek','0s');s.classList.remove('paused');t.textContent='PAUSE';s.style.display='none';void s.offsetWidth;s.style.display='block'});</script>
+</body>
+</html>
