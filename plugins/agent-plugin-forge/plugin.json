@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-plugin-forge",
-  "version": "0.2.0",
-  "description": "Import, review, package, and validate Agent Skills and MCP servers as portable Agent Plugins 1.0 packages.",
+  "version": "0.3.0",
+  "description": "Review and publish Agent Skills from any workspace as portable Agent Plugins 1.0 packages.",
   "author": {
     "name": "MiguelElGallo",
     "url": "https://github.com/MiguelElGallo"

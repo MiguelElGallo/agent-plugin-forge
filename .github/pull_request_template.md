@@ -5,11 +5,15 @@
 - Source and immutable revision:
 - License evidence:
 - New plugin or explicit bundle:
+- Forge origin / GitHub host:
+- Approved review-plan SHA-256:
+- Publication approval scope (fork / push / PR / merge):
 
 ## Review
 
 - [ ] I reviewed all imported instructions, scripts, references, and assets.
 - [ ] For skill imports: the dry-run plan preceded `--apply`.
+- [ ] For skill imports: the user approved the exact plan before publication actions.
 - [ ] For skill imports: imported content is byte-identical and provenance is complete.
 - [ ] For MCP changes: runtime, transport, environment, and endpoint behavior were reviewed and tested.
 - [ ] `uv run forge check` passes.

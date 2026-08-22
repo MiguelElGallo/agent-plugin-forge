@@ -1,6 +1,6 @@
 # Load the plugin in Visual Studio Code
 
-Visual Studio Code can load Agent Plugins 1.0 directly. In this chapter you will register the local portable folder and verify that VS Code discovers its skill.
+Visual Studio Code can load Agent Plugins 1.0 directly. In this contributor chapter you will register a local package that has not been merged into a marketplace and verify that VS Code discovers its skill. Normal users install merged packages from `@agentPlugins` instead of configuring a filesystem path.
 
 ## Enable agent plugins
 

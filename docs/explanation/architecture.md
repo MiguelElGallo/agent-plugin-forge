@@ -2,6 +2,20 @@
 
 Agent Plugins 1.0 standardizes a deliberately small portable package: root `plugin.json`, immediate Agent Skills under `skills/`, and root `mcp.json`. It does not standardize marketplace schemas, installation policy, branch workflows, or every vendor-specific customization.
 
+## Installed assistant and operating checkout
+
+The `agent-plugin-forge` plugin is the user-facing assistant. It can be installed from a marketplace without cloning this repository. When asked to publish from another workspace, its bundled bootstrap helper clones the selected Forge origin into a disposable or user-selected location and verifies clean current `main` before the Forge CLI runs.
+
+```text
+installed package-agent-skill
+        ↓ bootstrap selected origin
+clean Forge checkout
+        ↓ review plan, then explicit approval
+portable package and pull request
+```
+
+The origin is configurable. Public GitHub, a private repository, a mirror, and GitHub Enterprise Server use the same package layout. The selected origin also defines the publication target so private content is not redirected to the public marketplace.
+
 ## One source of truth
 
 Forge keeps the portable package under `plugins/`. Visual Studio Code and compatible GitHub Copilot clients load that package directly:

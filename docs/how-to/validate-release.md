@@ -19,15 +19,13 @@ Pydantic owns forge-specific catalog, provenance, marketplace, and MCP semantic 
 
 ## Client acceptance matrix
 
-Before release, record exact versions and test from a disposable fresh clone:
+Before release, record exact versions and test both the installed user journey and direct contributor workflow:
 
-1. open the clone in VS Code;
-2. run the tutorial commands in its integrated terminal;
-3. register a local portable plugin with `chat.pluginLocations`;
-4. confirm its skill in **Chat: Configure Skills**;
-5. confirm its MCP server in the MCP list and call a credential-free tool;
-6. mount the same portable package with Copilot CLI;
-7. install the same portable package with Codex.
+1. install the exact current `agent-plugin-forge` package in an isolated VS Code profile and confirm `package-agent-skill` in **Chat: Configure Skills**;
+2. run the packaged bootstrap helper against an isolated Git remote and verify temporary creation, alternate origin, persistent reuse, clean `main`, and exact revision;
+3. install the same package in isolated Copilot CLI and Codex homes;
+4. open a disposable contributor clone in VS Code and run the manual tutorial commands;
+5. register a local portable fixture with `chat.pluginLocations`, confirm its skill and MCP server, and call a credential-free tool.
 
 Marketplace command pairs:
 
@@ -42,6 +40,8 @@ codex plugin list
 ```
 
 Use isolated client homes for repeatable tests. Do not remove or replace a user's existing marketplace registrations during acceptance.
+
+For private-marketplace qualification, use a disposable private or local Git source. Confirm that all clients accept the same HTTPS or SSH marketplace URL and that publication derives its host and PR target from the selected origin. Never place real private credentials in fixtures or logs.
 
 ## Publish and read back
 

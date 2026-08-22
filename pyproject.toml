@@ -1,7 +1,7 @@
 [project]
 name = "agent-plugin-forge"
-version = "0.2.0"
-description = "Package Agent Skills and MCP servers as validated Agent Plugins 1.0 distributions."
+version = "0.3.0"
+description = "Review and publish Agent Skills and MCP servers as validated Agent Plugins 1.0 distributions."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

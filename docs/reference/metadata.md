@@ -28,4 +28,6 @@ Each `provenance/<skill>.json` records:
 - deterministic content-tree SHA-256;
 - declared transformations.
 
-The approval hash printed by `forge import` also binds the destination's current package state and catalog entry, version, author, category, license bytes and destination, source kind, selected source skill, provenance fields, content hashes, and executable modes. A changed plan must be reviewed again.
+Source origins accept credential-free HTTPS, SSH, scp-style SSH, file URLs, absolute local paths, or simple local identifiers. Forge rejects embedded credentials, query tokens, fragments, Git remote-helper syntax, control characters, and ambiguous relative paths before provenance can be written.
+
+The approval hash printed by `forge import` also binds the selected Forge repository URL, the complete catalog bytes, the destination's current package state, version, author, category, license bytes and destination, source kind, selected source skill, normalized provenance fields, content hashes, and executable modes. A changed plan must be reviewed again.

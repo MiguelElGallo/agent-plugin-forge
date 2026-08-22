@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -7,6 +8,16 @@ import sys
 from pathlib import Path
 
 from .conftest import git
+
+BOOTSTRAP = (
+    Path(__file__).parents[1]
+    / "plugins"
+    / "agent-plugin-forge"
+    / "skills"
+    / "package-agent-skill"
+    / "scripts"
+    / "bootstrap_forge.py"
+)
 
 
 def forge(repo: Path, *args: str, expect: int = 0) -> subprocess.CompletedProcess[str]:
@@ -24,7 +35,7 @@ def forge(repo: Path, *args: str, expect: int = 0) -> subprocess.CompletedProces
     return result
 
 
-def initialize_remote(repo: Path, tmp_path: Path) -> None:
+def initialize_remote(repo: Path, tmp_path: Path) -> Path:
     remote = tmp_path / "tutorial-remote.git"
     git(repo, "init", "-b", "main")
     git(repo, "config", "user.email", "tutorial@example.com")
@@ -35,6 +46,7 @@ def initialize_remote(repo: Path, tmp_path: Path) -> None:
     git(tmp_path, "init", "--bare", str(remote))
     git(repo, "remote", "add", "origin", str(remote))
     git(repo, "push", "-u", "origin", "main")
+    return remote
 
 
 def test_first_skill_tutorial_runs_through_the_real_cli(
@@ -42,7 +54,21 @@ def test_first_skill_tutorial_runs_through_the_real_cli(
     skill_source: Path,
     tmp_path: Path,
 ) -> None:
-    initialize_remote(empty_forge, tmp_path)
+    remote = initialize_remote(empty_forge, tmp_path)
+    review_checkout = tmp_path / "review-checkout"
+    subprocess.run(
+        [
+            sys.executable,
+            str(BOOTSTRAP),
+            "--origin",
+            str(remote),
+            "--destination",
+            str(review_checkout),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     license_file = skill_source.parent / "LICENSE"
     license_file.write_text("Test license\n", encoding="utf-8")
     revision = "0123456789abcdef0123456789abcdef01234567"
@@ -75,7 +101,7 @@ def test_first_skill_tutorial_runs_through_the_real_cli(
     )
 
     branch = forge(
-        empty_forge,
+        review_checkout,
         "branch",
         "--plugin",
         "sample-skill",
@@ -83,19 +109,23 @@ def test_first_skill_tutorial_runs_through_the_real_cli(
         "sample-skill",
     )
     assert "skill/sample-skill/sample-skill" in branch.stdout
-    plan = forge(empty_forge, *common_args)
+    plan = forge(review_checkout, *common_args)
     match = re.search(r"review plan sha256 ([0-9a-f]{64})", plan.stdout)
     assert match is not None
     forge(
-        empty_forge,
+        review_checkout,
         *common_args,
         "--expected-sha256",
         match.group(1),
         "--apply",
     )
-    forge(empty_forge, "generate")
-    checked = forge(empty_forge, "check")
+    forge(review_checkout, "generate")
+    checked = forge(review_checkout, "check")
     assert "checks passed" in checked.stdout
     assert (
-        empty_forge / "plugins" / "sample-skill" / "skills" / "sample-skill" / "SKILL.md"
+        review_checkout / "plugins" / "sample-skill" / "skills" / "sample-skill" / "SKILL.md"
     ).is_file()
+    manifest = json.loads(
+        (review_checkout / "plugins" / "sample-skill" / "plugin.json").read_text(encoding="utf-8")
+    )
+    assert manifest["repository"] == remote.as_uri()

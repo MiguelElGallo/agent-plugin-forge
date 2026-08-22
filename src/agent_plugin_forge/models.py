@@ -22,12 +22,50 @@ MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 HTTP_FIELD_NAME_RE = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 IMMUTABLE_REVISION_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64}|sha256:[0-9a-f]{64})$")
+PROVENANCE_LOCAL_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+SCP_GIT_ORIGIN_RE = re.compile(r"(?:(?P<user>[^@/:]+)@)?(?P<host>[^/:]+):(?P<path>.+)")
 
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 OpaqueNonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 MarketplaceDescription = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1024)
 ]
+
+
+def normalize_provenance_origin(value: str) -> str:
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise ValueError("origin must not contain control characters")
+    if "::" in value:
+        raise ValueError("Git remote-helper origins are not supported")
+
+    local = Path(value).expanduser()
+    if local.is_absolute():
+        return local.resolve().as_uri()
+
+    if "://" not in value:
+        scp = SCP_GIT_ORIGIN_RE.fullmatch(value)
+        if scp:
+            if "?" in scp.group("path") or "#" in scp.group("path"):
+                raise ValueError("origin must not include a query or fragment")
+            user = f"{scp.group('user')}@" if scp.group("user") else ""
+            path = scp.group("path").lstrip("/")
+            return f"ssh://{user}{scp.group('host')}/{path}"
+        if PROVENANCE_LOCAL_ID_RE.fullmatch(value):
+            return value
+        raise ValueError("local origin must be an absolute path or a simple identifier")
+
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"https", "ssh", "file"}:
+        raise ValueError("origin must use HTTPS, SSH, scp-style SSH, file, or local identity")
+    if parsed.password is not None or (
+        parsed.scheme in {"https", "file"} and parsed.username is not None
+    ):
+        raise ValueError("origin URL must not embed credentials")
+    if parsed.query or parsed.fragment:
+        raise ValueError("origin URL must not include a query or fragment")
+    if parsed.scheme in {"https", "ssh"} and not parsed.hostname:
+        raise ValueError("network origin must include a host")
+    return value
 
 
 class StrictModel(BaseModel):
@@ -366,6 +404,11 @@ class ProvenanceRecord(StrictModel):
         validate_name(value, kind="skill")
         return value
 
+    @field_validator("origin")
+    @classmethod
+    def safe_origin(cls, value: str) -> str:
+        return normalize_provenance_origin(value)
+
     @field_validator("revision")
     @classmethod
     def immutable_revision(cls, value: str) -> str:
@@ -418,6 +461,11 @@ class ImportRequest(StrictModel):
         validate_name(value, kind="plugin")
         return value
 
+    @field_validator("origin")
+    @classmethod
+    def safe_origin(cls, value: str) -> str:
+        return normalize_provenance_origin(value)
+
     @field_validator("source_skill")
     @classmethod
     def valid_source_skill(cls, value: str | None) -> str | None:
@@ -458,6 +506,8 @@ class ImportPlan(StrictModel):
     skill: NonEmptyStr
     source_kind: Literal["skill-directory", "skill-file", "plugin-skill"]
     destination: Path
+    repository_url: NonEmptyStr
+    catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     creates_plugin: bool
     file_count: int = Field(ge=1)
     content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

@@ -1,6 +1,8 @@
 # Import an existing skill
 
-Use this guide when the source is already local and reviewed. The importer accepts three shapes:
+Use this guide when you are operating a Forge checkout directly and the source is already local and reviewed. If Agent Plugin Forge is installed in your client, use [Publish a skill with your agent](publish-skill.md) and let it create the checkout.
+
+The importer accepts three shapes:
 
 - a directory with `SKILL.md` at its root;
 - a lone file named `SKILL.md`;

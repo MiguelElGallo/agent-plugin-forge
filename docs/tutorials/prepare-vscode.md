@@ -1,6 +1,8 @@
-# Prepare VS Code and the forge
+# Prepare a Forge development checkout
 
-In this chapter you will open a fresh checkout in Visual Studio Code, install the locked Python environment, and prove that the repository starts valid.
+This is the contributor tutorial for changing Forge code or marketplace contents directly. Installing the Forge and publishing through its agent workflow do not require a manual clone; use [Install Agent Plugin Forge](install-forge.md) for that journey.
+
+In this chapter you will open a fresh development checkout in Visual Studio Code, install the locked Python environment, and prove that the repository starts valid.
 
 ## Fork and clone the repository
 
