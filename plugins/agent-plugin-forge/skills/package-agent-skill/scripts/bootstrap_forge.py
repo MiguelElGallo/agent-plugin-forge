@@ -11,7 +11,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
 
 DEFAULT_ORIGIN = "https://github.com/MiguelElGallo/agent-plugin-forge.git"
@@ -80,6 +80,8 @@ def _git(arguments: list[str], *, hooks_path: Path, cwd: Path | None = None) -> 
             f"core.hooksPath={hooks_path}",
             "-c",
             "core.fsmonitor=false",
+            "-c",
+            "core.autocrlf=false",
             *arguments,
         ],
         cwd=cwd,
@@ -116,6 +118,8 @@ def _destination(value: str | None, *, reuse: bool) -> tuple[Path, bool]:
 
 def _origin_host(origin: str) -> str:
     if "://" not in origin:
+        if Path(origin).is_absolute() or PureWindowsPath(origin).is_absolute():
+            return "local"
         scp = SCP_ORIGIN_RE.fullmatch(origin)
         return scp.group("host") if scp else "local"
 

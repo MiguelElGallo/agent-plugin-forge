@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -37,6 +38,26 @@ def _remote(tmp_path: Path) -> tuple[Path, str, Path]:
     git(source, "remote", "add", "origin", str(remote))
     git(source, "push", "-u", "origin", "main")
     return remote, revision, source
+
+
+def test_bootstrap_treats_windows_absolute_origin_as_local() -> None:
+    namespace = runpy.run_path(str(SCRIPT))
+
+    assert namespace["_origin_host"](r"C:\work\agent-plugin-forge.git") == "local"
+
+
+def test_bootstrap_disables_git_line_ending_conversion(monkeypatch: pytest.MonkeyPatch) -> None:
+    namespace = runpy.run_path(str(SCRIPT))
+    commands: list[list[str]] = []
+
+    def capture(command: list[str], *, cwd: Path | None = None) -> str:
+        commands.append(command)
+        return ""
+
+    monkeypatch.setitem(namespace["_git"].__globals__, "_run", capture)
+    namespace["_git"](["status"], hooks_path=Path("hooks"))
+
+    assert "core.autocrlf=false" in commands[0]
 
 
 def test_bootstrap_creates_clean_current_main_checkout(tmp_path: Path) -> None:
