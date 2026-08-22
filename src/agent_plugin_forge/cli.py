@@ -1,3 +1,5 @@
+"""Provide the command-line interface for Agent Plugin Forge workflows."""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,5 @@
+"""Inspect and copy package files while enforcing filesystem safety rules."""
+
 from __future__ import annotations
 
 import hashlib

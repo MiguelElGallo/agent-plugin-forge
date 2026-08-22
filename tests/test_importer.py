@@ -1,3 +1,5 @@
+"""Test hash-bound planning and application of reviewed skill imports."""
+
 from __future__ import annotations
 
 import os

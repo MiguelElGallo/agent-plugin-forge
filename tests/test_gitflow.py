@@ -1,3 +1,5 @@
+"""Test branch creation, naming contracts, and pull-request scope checks."""
+
 from __future__ import annotations
 
 from pathlib import Path

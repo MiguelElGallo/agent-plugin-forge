@@ -1,3 +1,5 @@
+"""Provide shared parsing, hashing, validation, and repository helpers."""
+
 from __future__ import annotations
 
 import hashlib

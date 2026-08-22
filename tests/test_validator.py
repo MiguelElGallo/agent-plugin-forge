@@ -1,3 +1,5 @@
+"""Test repository validation across schemas, packages, and provenance."""
+
 from __future__ import annotations
 
 import json

@@ -1,3 +1,5 @@
+"""Generate client marketplace files safely and detect generated-file drift."""
+
 from __future__ import annotations
 
 import os

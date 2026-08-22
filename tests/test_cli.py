@@ -1,3 +1,5 @@
+"""Test command-line parsing, planning, generation, and validation."""
+
 from __future__ import annotations
 
 import os

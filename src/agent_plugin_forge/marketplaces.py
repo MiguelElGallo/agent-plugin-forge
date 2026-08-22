@@ -1,3 +1,5 @@
+"""Render client-specific marketplaces from the portable package catalog."""
+
 from __future__ import annotations
 
 from pathlib import Path

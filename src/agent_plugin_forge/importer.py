@@ -1,3 +1,5 @@
+"""Plan and apply hash-bound imports of reviewed Agent Skills."""
+
 from __future__ import annotations
 
 import hashlib

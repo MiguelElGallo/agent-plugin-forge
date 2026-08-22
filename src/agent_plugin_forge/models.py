@@ -1,3 +1,5 @@
+"""Define validated models for packages, marketplaces, provenance, and MCP."""
+
 from __future__ import annotations
 
 import ipaddress

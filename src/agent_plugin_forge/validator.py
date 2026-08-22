@@ -1,3 +1,5 @@
+"""Validate repository schemas, packages, provenance, and generated outputs."""
+
 from __future__ import annotations
 
 import hashlib

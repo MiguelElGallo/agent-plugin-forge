@@ -1,3 +1,5 @@
+"""Test safe, deterministic marketplace generation and drift detection."""
+
 from __future__ import annotations
 
 import json
