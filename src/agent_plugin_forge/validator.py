@@ -18,6 +18,8 @@ from .packages import PortablePackage, load_catalog, load_package
 
 
 def _schema_errors(instance: dict[str, Any], schema: dict[str, Any], label: str) -> list[str]:
+    """Return sorted JSON Schema validation errors for one instance."""
+
     validator = Draft202012Validator(schema)
     return [
         f"{label}: "
@@ -29,6 +31,8 @@ def _schema_errors(instance: dict[str, Any], schema: dict[str, Any], label: str)
 
 
 def _checksum_errors(root: Path, label: str) -> list[str]:
+    """Validate vendored JSON files against their SHA256SUMS manifest."""
+
     try:
         lines = (root / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError) as exc:
@@ -69,6 +73,8 @@ def _checksum_errors(root: Path, label: str) -> list[str]:
 
 
 def _schema_checksum_errors(repo: Path) -> list[str]:
+    """Return checksum errors for vendored Agent Plugins schemas."""
+
     return _checksum_errors(repo / "schemas" / "agent-plugins" / "1.0.0", "schema")
 
 
@@ -79,6 +85,8 @@ def _provenance_errors(
     hashes: dict[str, str],
     modes: dict[str, bool] | None = None,
 ) -> list[str]:
+    """Validate one skill's provenance identity, evidence, hashes, and modes."""
+
     try:
         record = ProvenanceRecord.model_validate(provenance)
     except ValidationError as exc:
@@ -104,6 +112,8 @@ def _provenance_errors(
 
 
 def _license_errors(package: PortablePackage) -> list[str]:
+    """Return distribution errors for a package's declared license."""
+
     if package.manifest.license is None:
         return [f"{package.entry.name} must declare an SPDX license expression"]
     root_license = package.root / "LICENSE"
@@ -124,6 +134,8 @@ def _package_provenance_errors(
     package: PortablePackage,
     seen_skills: dict[str, str],
 ) -> list[str]:
+    """Validate every skill provenance record in one portable package."""
+
     errors = _license_errors(package)
     plugin_skill_names = {skill_root.name for skill_root in package.skill_roots}
     for skill_root in package.skill_roots:
@@ -157,6 +169,8 @@ def _package_provenance_errors(
 
 
 def validate_repository(repo: Path) -> list[str]:
+    """Return all repository validation errors without raising for drift."""
+
     errors = _schema_checksum_errors(repo)
     try:
         catalog = load_catalog(repo)
@@ -200,6 +214,8 @@ def validate_repository(repo: Path) -> list[str]:
 
 
 def assert_valid_repository(repo: Path) -> None:
+    """Raise a single actionable error when repository validation fails."""
+
     errors = validate_repository(repo)
     if errors:
         raise ForgeError("Validation failed:\n- " + "\n- ".join(errors))

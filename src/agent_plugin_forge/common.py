@@ -23,6 +23,8 @@ SPDX_LICENSING = get_spdx_licensing()
 
 
 def load_json(path: Path) -> dict[str, Any]:
+    """Load a UTF-8 JSON object or raise an actionable forge error."""
+
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -33,10 +35,14 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def json_bytes(value: object) -> bytes:
+    """Serialize a value as stable, indented, newline-terminated JSON bytes."""
+
     return (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode()
 
 
 def validate_name(value: str, *, kind: str) -> None:
+    """Validate a plugin or skill name against the portable naming contract."""
+
     pattern = SKILL_NAME_RE if kind == "skill" else PLUGIN_NAME_RE
     if len(value) > 64 or not pattern.fullmatch(value):
         raise ForgeError(
@@ -45,6 +51,8 @@ def validate_name(value: str, *, kind: str) -> None:
 
 
 def contained_child(root: Path, name: str, *, kind: str) -> Path:
+    """Return a validated named child that cannot escape its root directory."""
+
     validate_name(name, kind=kind)
     root_resolved = root.resolve()
     child = root / name
@@ -54,6 +62,8 @@ def contained_child(root: Path, name: str, *, kind: str) -> Path:
 
 
 def parse_semver(value: object, *, label: str) -> Version:
+    """Parse a strict semantic version with a label-specific error message."""
+
     if not isinstance(value, str):
         raise ForgeError(f"{label} must use strict Semantic Versioning")
     try:
@@ -63,6 +73,8 @@ def parse_semver(value: object, *, label: str) -> Version:
 
 
 def validate_spdx_expression(value: object, *, label: str) -> str:
+    """Validate and return a non-empty SPDX license expression."""
+
     if not isinstance(value, str) or not value.strip():
         raise ForgeError(f"{label} must be a valid SPDX license expression")
     try:
@@ -73,6 +85,8 @@ def validate_spdx_expression(value: object, *, label: str) -> str:
 
 
 def parse_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
+    """Parse and validate Agent Skill YAML frontmatter and instruction content."""
+
     try:
         text = skill_md.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
@@ -135,14 +149,20 @@ def parse_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
 
 
 def inspect_tree(root: Path) -> list[Path]:
+    """Inspect a skill tree and return its safe regular files."""
+
     return inspect_regular_tree(root, required_root_file="SKILL.md", tree_label="Source")
 
 
 def file_hashes(root: Path) -> dict[str, str]:
+    """Return SHA-256 hashes for every safe file in a skill tree."""
+
     return _file_hashes(root, required_root_file="SKILL.md")
 
 
 def tree_hash(hashes: dict[str, str]) -> str:
+    """Compute a deterministic aggregate SHA-256 for a relative-path hash map."""
+
     digest = hashlib.sha256()
     for path, value in sorted(hashes.items()):
         digest.update(path.encode())
@@ -153,6 +173,8 @@ def tree_hash(hashes: dict[str, str]) -> str:
 
 
 def repository_root(start: Path | None = None) -> Path:
+    """Find the nearest Agent Plugin Forge repository root."""
+
     current = (start or Path.cwd()).resolve()
     for candidate in (current, *current.parents):
         if (candidate / "catalog" / "plugins.json").is_file():

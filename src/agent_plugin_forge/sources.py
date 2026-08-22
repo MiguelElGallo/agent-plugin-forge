@@ -16,6 +16,8 @@ SourceKind = Literal["skill-directory", "skill-file", "plugin-skill"]
 
 @dataclass(frozen=True)
 class SkillSource:
+    """Describe an inspected local Agent Skill source and its safe files."""
+
     kind: SourceKind
     name: str
     root: Path | None
@@ -23,25 +25,37 @@ class SkillSource:
     files: tuple[Path, ...]
 
     def relative_path(self, path: Path) -> str:
+        """Return a source file's portable relative path."""
+
         return "SKILL.md" if self.root is None else path.relative_to(self.root).as_posix()
 
     def hashes(self) -> dict[str, str]:
+        """Return SHA-256 hashes for every inspected source file."""
+
         return {
             self.relative_path(path): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in self.files
         }
 
     def modes(self) -> dict[str, bool]:
+        """Return portable executable-bit metadata for every source file."""
+
         return {self.relative_path(path): bool(path.stat().st_mode & 0o111) for path in self.files}
 
     def content_sha256(self) -> str:
+        """Return the deterministic aggregate hash of the source content."""
+
         return tree_hash(self.hashes())
 
     def path_for(self, relative: str) -> Path:
+        """Resolve a portable relative source path to its local path."""
+
         return self.skill_md if self.root is None else self.root / relative
 
 
 def _directory_source(root: Path, kind: SourceKind) -> SkillSource:
+    """Inspect a skill directory and build its immutable source description."""
+
     files = tuple(
         inspect_regular_tree(root, required_root_file="SKILL.md", tree_label="Skill source")
     )
@@ -57,6 +71,8 @@ def _directory_source(root: Path, kind: SourceKind) -> SkillSource:
 
 
 def _plugin_source(root: Path, requested_skill: str | None) -> SkillSource:
+    """Select one immediate skill from an existing plugin source."""
+
     skills_root = root / "skills"
     if not skills_root.is_dir() or skills_root.is_symlink():
         raise ForgeError(f"Existing plugin source has no safe skills/ directory: {root}")

@@ -23,11 +23,15 @@ MAX_TREE_BYTES = 50 * 1024 * 1024
 
 
 def is_linklike(path: Path) -> bool:
+    """Return whether a path is a symbolic link or platform junction."""
+
     junction_check = getattr(path, "is_junction", None)
     return path.is_symlink() or (junction_check is not None and junction_check())
 
 
 def inspect_regular_file(path: Path, *, file_label: str = "Source file") -> bytes:
+    """Read one bounded regular file after rejecting links and likely secrets."""
+
     try:
         mode = path.lstat().st_mode
     except OSError as exc:
@@ -120,6 +124,8 @@ def inspect_regular_tree(
 
 
 def file_hashes(root: Path, *, required_root_file: str | None = None) -> dict[str, str]:
+    """Hash every safe regular file in a tree by its relative path."""
+
     return {
         path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in inspect_regular_tree(root, required_root_file=required_root_file)
@@ -158,6 +164,8 @@ def tree_snapshot(root: Path) -> dict[str, tuple[bytes, bool]]:
 
 
 def generated_path_errors(repo: Path, path: Path, *, directory: bool) -> list[str]:
+    """Return safety errors for a generated output path and its ancestors."""
+
     try:
         relative = path.relative_to(repo)
     except ValueError:
@@ -185,6 +193,8 @@ def generated_path_errors(repo: Path, path: Path, *, directory: bool) -> list[st
 
 
 def generated_tree_errors(repo: Path, root: Path) -> list[str]:
+    """Return safety errors for every path in a generated output tree."""
+
     errors = generated_path_errors(repo, root, directory=True)
     if errors or not root.exists():
         return errors

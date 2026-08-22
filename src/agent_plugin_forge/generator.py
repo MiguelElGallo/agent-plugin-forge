@@ -13,6 +13,8 @@ from .marketplaces import render_marketplaces
 
 
 def _output_safety_errors(repo: Path, marketplace_paths: list[Path]) -> list[str]:
+    """Collect safety errors for generated marketplace output paths."""
+
     return [
         error
         for path in marketplace_paths
@@ -21,6 +23,8 @@ def _output_safety_errors(repo: Path, marketplace_paths: list[Path]) -> list[str
 
 
 def _stage_outputs(repo: Path, staging: Path, rendered: dict[Path, bytes]) -> None:
+    """Write rendered marketplace files into a temporary staging tree."""
+
     for path, content in rendered.items():
         staged = staging / path.relative_to(repo)
         staged.parent.mkdir(parents=True, exist_ok=True)
@@ -28,6 +32,8 @@ def _stage_outputs(repo: Path, staging: Path, rendered: dict[Path, bytes]) -> No
 
 
 def _publish_transactionally(repo: Path, staging: Path, targets: list[Path], backups: Path) -> None:
+    """Publish staged outputs atomically and restore backups after failure."""
+
     replaced: list[tuple[Path, Path | None]] = []
     try:
         for target in targets:

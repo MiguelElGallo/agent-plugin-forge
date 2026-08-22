@@ -23,6 +23,8 @@ class BootstrapError(RuntimeError):
 
 
 def _validate_origin(origin: str) -> None:
+    """Reject unsafe, credential-bearing, or unsupported forge origins."""
+
     if not origin:
         raise BootstrapError("Forge origin is empty")
     if any(ord(character) < 32 or ord(character) == 127 for character in origin):
@@ -52,6 +54,8 @@ def _validate_origin(origin: str) -> None:
 
 
 def _normalize_origin(origin: str) -> str:
+    """Validate an origin and normalize relative local paths to absolute paths."""
+
     _validate_origin(origin)
     if "://" in origin:
         return origin
@@ -64,6 +68,8 @@ def _normalize_origin(origin: str) -> str:
 
 
 def _run(command: list[str], *, cwd: Path | None = None) -> str:
+    """Run a required command and return its stripped standard output."""
+
     try:
         result = subprocess.run(
             command,
@@ -81,6 +87,8 @@ def _run(command: list[str], *, cwd: Path | None = None) -> str:
 
 
 def _git(arguments: list[str], *, hooks_path: Path, cwd: Path | None = None) -> str:
+    """Run Git with repository hooks, fsmonitor, and line conversion disabled."""
+
     return _run(
         [
             "git",
@@ -97,6 +105,8 @@ def _git(arguments: list[str], *, hooks_path: Path, cwd: Path | None = None) -> 
 
 
 def _is_link_like(path: Path) -> bool:
+    """Return whether a path is a symlink, junction, or Windows reparse point."""
+
     if path.is_symlink():
         return True
     is_junction = getattr(path, "is_junction", None)
@@ -109,6 +119,8 @@ def _is_link_like(path: Path) -> bool:
 
 
 def _destination(value: str | None, *, reuse: bool) -> tuple[Path, bool]:
+    """Resolve a new or explicitly reusable checkout destination."""
+
     if value is None:
         parent = Path(tempfile.mkdtemp(prefix="agent-plugin-forge-review-"))
         return parent / "agent-plugin-forge", False
@@ -125,6 +137,8 @@ def _destination(value: str | None, *, reuse: bool) -> tuple[Path, bool]:
 
 
 def _origin_host(origin: str) -> str:
+    """Return a safe host label for a network origin or ``local`` otherwise."""
+
     if "://" not in origin:
         if Path(origin).is_absolute() or PureWindowsPath(origin).is_absolute():
             return "local"
@@ -138,7 +152,11 @@ def _origin_host(origin: str) -> str:
 
 
 def bootstrap(origin: str, destination: Path, *, reuse: bool) -> dict[str, str]:
+    """Create or refresh a verified, clean checkout of current origin/main."""
+
     def verify(checkout: Path, hooks_path: Path) -> str:
+        """Update a checkout and return its verified origin/main revision."""
+
         _git(["pull", "--ff-only", "origin", "main"], hooks_path=hooks_path, cwd=checkout)
         revision = _git(["rev-parse", "HEAD"], hooks_path=hooks_path, cwd=checkout)
         remote_line = _git(
@@ -206,6 +224,8 @@ def bootstrap(origin: str, destination: Path, *, reuse: bool) -> dict[str, str]:
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Build the standalone bootstrap script's argument parser."""
+
     parser = argparse.ArgumentParser(
         description="Clone a clean, current Agent Plugin Forge review checkout."
     )
@@ -223,6 +243,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Run the bootstrap CLI and return a process exit status."""
+
     args = _parser().parse_args()
     try:
         origin = _normalize_origin(args.origin)

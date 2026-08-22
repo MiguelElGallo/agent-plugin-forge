@@ -25,6 +25,8 @@ from .validator import assert_valid_repository
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Build the top-level command-line parser and its subcommands."""
+
     parser = argparse.ArgumentParser(
         prog="forge", description="Package Agent Skills and MCP servers safely"
     )
@@ -82,6 +84,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _request(args: argparse.Namespace) -> ImportRequest:
+    """Convert parsed import arguments into a validated import request."""
+
     source = args.source.absolute()
     plugin = args.plugin or resolve_skill_source(source, args.source_skill).name
     return ImportRequest(
@@ -104,6 +108,8 @@ def _request(args: argparse.Namespace) -> ImportRequest:
 
 
 def run(argv: list[str] | None = None) -> int:
+    """Run one forge command and return its process exit status."""
+
     args = _parser().parse_args(argv)
     repo = repository_root()
     if args.command == "branch":
@@ -158,6 +164,8 @@ def run(argv: list[str] | None = None) -> int:
 
 
 def main() -> None:
+    """Run the CLI entry point and translate expected errors into exit code 2."""
+
     try:
         raise SystemExit(run())
     except (ForgeError, ValidationError) as exc:

@@ -15,6 +15,8 @@ from .models import McpConfiguration, StdioServer
 
 
 def _location(parts: tuple[object, ...]) -> str:
+    """Format a validation-error location for a user-facing message."""
+
     return ".".join(str(part) for part in parts) or "<root>"
 
 
@@ -44,6 +46,8 @@ def load_mcp_configuration(repo: Path, plugin_root: Path) -> McpConfiguration | 
 
 
 def _plugin_root_path(plugin_root: Path, value: str) -> Path | None:
+    """Resolve a supported plugin-root-relative MCP path expression."""
+
     if value.startswith("./"):
         return plugin_root.joinpath(*Path(value[2:]).parts)
     marker = "${PLUGIN_ROOT}"
@@ -55,6 +59,8 @@ def _plugin_root_path(plugin_root: Path, value: str) -> Path | None:
 
 
 def mcp_component_errors(plugin_root: Path, configuration: McpConfiguration) -> list[str]:
+    """Return packaged-command and working-directory errors for MCP servers."""
+
     errors: list[str] = []
     root = plugin_root.resolve()
     for name, server in configuration.mcp_servers.items():
