@@ -10,6 +10,7 @@ import agent_plugin_forge.importer as importer_module
 from agent_plugin_forge.common import ForgeError, load_json
 from agent_plugin_forge.importer import (
     ImportRequest,
+    _forge_repository_url,
     _manifest_repository_url,
     apply_import,
     plan_import,
@@ -42,6 +43,7 @@ def request(source: Path, **overrides: object) -> ImportRequest:
 def apply_reviewed(repo: Path, source: Path, **overrides: object):
     import_request = request(source, **overrides)
     plan = plan_import(repo, import_request)
+    git(repo, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     return apply_import(
         repo, import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
     )
@@ -100,6 +102,11 @@ def test_manifest_repository_url_rejects_embedded_http_credentials(tmp_path: Pat
         )
 
 
+def test_forge_repository_url_requires_git_origin(tmp_path: Path) -> None:
+    with pytest.raises(ForgeError, match="Git worktree with an origin remote"):
+        _forge_repository_url(tmp_path)
+
+
 @pytest.mark.parametrize(
     "origin, message",
     [
@@ -111,6 +118,23 @@ def test_manifest_repository_url_rejects_embedded_http_credentials(tmp_path: Pat
             "https://github.company.example/platform/forge.git#token=secret",
             "query or fragment",
         ),
+        (
+            "git@github.company.example:platform/forge.git?token=secret",
+            "query or fragment",
+        ),
+        (
+            "git@github.company.example:platform/forge.git#token=secret",
+            "query or fragment",
+        ),
+        (
+            "git?token@github.company.example:platform/forge.git",
+            "query or fragment",
+        ),
+        (
+            "git@github.company.example#token:platform/forge.git",
+            "query or fragment",
+        ),
+        ("git@github.company.example:platform/forge.git\nsecret", "control characters"),
         ("git://github.company.example/platform/forge.git", "must use HTTPS"),
         ("ext::sh -c id", "remote-helper"),
     ],
@@ -125,14 +149,8 @@ def test_manifest_repository_url_rejects_unsafe_network_origins(
 def test_plan_binds_forge_repository_origin(empty_forge: Path, skill_source: Path) -> None:
     git(
         empty_forge,
-        "init",
-        "-b",
-        "main",
-    )
-    git(
-        empty_forge,
         "remote",
-        "add",
+        "set-url",
         "origin",
         "ssh://git@github.company.example/platform/forge.git",
     )
@@ -161,6 +179,8 @@ def test_plan_binds_forge_repository_origin(empty_forge: Path, skill_source: Pat
         ("file://token@localhost/private/repo.git", "must not embed credentials"),
         ("https://private.example/repo.git?token=secret", "query or fragment"),
         ("https://private.example/repo.git#secret", "query or fragment"),
+        ("git?secret@private.example:team/repo.git", "query or fragment"),
+        ("git@private.example#secret:team/repo.git", "query or fragment"),
         ("ext::sh -c id", "remote-helper"),
         ("git://private.example/repo.git", "must use HTTPS"),
         ("../relative-source", "absolute path or a simple identifier"),
@@ -182,6 +202,7 @@ def test_import_normalizes_source_origin_in_plan_and_provenance(
     )
     assert import_request.origin == "ssh://git@github.company.example/team/source-skill.git"
     plan = plan_import(empty_forge, import_request)
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     applied = apply_import(
         empty_forge,
         import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
@@ -378,6 +399,7 @@ def test_imports_a_lone_skill_file(empty_forge: Path, skill_source: Path) -> Non
     plan = plan_import(empty_forge, import_request)
     assert plan.source_kind == "skill-file"
     assert plan.files.keys() == {"SKILL.md"}
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     applied = apply_import(
         empty_forge,
         import_request.model_copy(update={"expected_sha256": plan.plan_sha256}),
@@ -431,6 +453,7 @@ def test_apply_rolls_back_plugin_and_catalog_on_publish_failure(
     import_request = request(skill_source)
     plan = plan_import(empty_forge, import_request)
     reviewed = import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     catalog_before = (empty_forge / "catalog" / "plugins.json").read_bytes()
     real_replace = importer_module.os.replace
     calls = 0

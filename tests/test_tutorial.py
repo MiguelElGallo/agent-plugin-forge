@@ -37,14 +37,13 @@ def forge(repo: Path, *args: str, expect: int = 0) -> subprocess.CompletedProces
 
 def initialize_remote(repo: Path, tmp_path: Path) -> Path:
     remote = tmp_path / "tutorial-remote.git"
-    git(repo, "init", "-b", "main")
     git(repo, "config", "user.email", "tutorial@example.com")
     git(repo, "config", "user.name", "Tutorial")
     (repo / "pyproject.toml").write_text("[project]\nname='tutorial'\n", encoding="utf-8")
     git(repo, "add", ".")
     git(repo, "commit", "-m", "seed tutorial checkout")
     git(tmp_path, "init", "--bare", str(remote))
-    git(repo, "remote", "add", "origin", str(remote))
+    git(repo, "remote", "set-url", "origin", str(remote))
     git(repo, "push", "-u", "origin", "main")
     return remote
 

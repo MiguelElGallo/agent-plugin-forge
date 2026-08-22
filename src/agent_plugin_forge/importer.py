@@ -33,6 +33,8 @@ from .sources import SkillSource, resolve_skill_source
 def _manifest_repository_url(origin: str, *, repo: Path) -> str:
     if not origin:
         raise ForgeError("Forge origin is empty")
+    if any(ord(character) < 32 or ord(character) == 127 for character in origin):
+        raise ForgeError("Forge origin must not contain control characters")
     local = Path(origin).expanduser()
     if local.is_absolute():
         return local.resolve().as_uri()
@@ -42,6 +44,8 @@ def _manifest_repository_url(origin: str, *, repo: Path) -> str:
             raise ForgeError("Git remote-helper origins are not supported")
         scp = re.fullmatch(r"(?:(?P<user>[^@/:]+)@)?(?P<host>[^/:]+):(?P<path>.+)", origin)
         if scp:
+            if "?" in origin or "#" in origin:
+                raise ForgeError("Forge origin must not include a query or fragment")
             user = f"{scp.group('user')}@" if scp.group("user") else ""
             path = scp.group("path").lstrip("/")
             return f"ssh://{user}{scp.group('host')}/{path}"
@@ -77,7 +81,7 @@ def _manifest_repository_url(origin: str, *, repo: Path) -> str:
 
 def _forge_repository_url(repo: Path) -> str:
     if not (repo / ".git").exists():
-        return f"https://github.com/MiguelElGallo/{repo.name}"
+        raise ForgeError("Forge checkout must be a Git worktree with an origin remote")
     result = subprocess.run(
         ["git", "remote", "get-url", "origin"],
         cwd=repo,

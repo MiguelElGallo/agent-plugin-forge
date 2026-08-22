@@ -25,9 +25,17 @@ class BootstrapError(RuntimeError):
 def _validate_origin(origin: str) -> None:
     if not origin:
         raise BootstrapError("Forge origin is empty")
+    if any(ord(character) < 32 or ord(character) == 127 for character in origin):
+        raise BootstrapError("Forge origin must not contain control characters")
     if "://" not in origin:
         if "::" in origin:
             raise BootstrapError("Git remote-helper origins are not supported")
+        local = Path(origin).expanduser()
+        if local.is_absolute() or PureWindowsPath(origin).is_absolute():
+            return
+        scp = SCP_ORIGIN_RE.fullmatch(origin)
+        if scp and ("?" in origin or "#" in origin):
+            raise BootstrapError("Forge origin must not include a query or fragment")
         return
 
     parsed = urlsplit(origin)

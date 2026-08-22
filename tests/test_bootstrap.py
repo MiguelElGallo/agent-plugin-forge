@@ -143,6 +143,23 @@ def test_bootstrap_rejects_embedded_http_credentials(tmp_path: Path) -> None:
             "https://github.company.example/platform/forge.git#token=secret",
             "query or fragment",
         ),
+        (
+            "git@github.company.example:platform/forge.git?token=secret",
+            "query or fragment",
+        ),
+        (
+            "git@github.company.example:platform/forge.git#token=secret",
+            "query or fragment",
+        ),
+        (
+            "git?token@github.company.example:platform/forge.git",
+            "query or fragment",
+        ),
+        (
+            "git@github.company.example#token:platform/forge.git",
+            "query or fragment",
+        ),
+        ("git@github.company.example:platform/forge.git\nsecret", "control characters"),
         ("file://token@localhost/private/forge.git", "must not embed credentials"),
         ("git://github.company.example/platform/forge.git", "must use HTTPS"),
         ("ext::sh -c id", "remote-helper"),

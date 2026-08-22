@@ -45,7 +45,7 @@ def normalize_provenance_origin(value: str) -> str:
     if "://" not in value:
         scp = SCP_GIT_ORIGIN_RE.fullmatch(value)
         if scp:
-            if "?" in scp.group("path") or "#" in scp.group("path"):
+            if "?" in value or "#" in value:
                 raise ValueError("origin must not include a query or fragment")
             user = f"{scp.group('user')}@" if scp.group("user") else ""
             path = scp.group("path").lstrip("/")
