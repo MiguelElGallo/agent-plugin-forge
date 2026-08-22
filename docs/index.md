@@ -4,7 +4,7 @@ Agent Plugin Forge has three user journeys. Choose the one that matches what you
 
 ## 1. Install Agent Plugin Forge
 
-You do not need to clone the repository. Add the marketplace once and install `agent-plugin-forge` in Visual Studio Code, Codex, or GitHub Copilot CLI.
+You do not need to clone the repository. Visual Studio Code can install the Forge from its Git repository with one Command Palette action. Codex and GitHub Copilot CLI register the marketplace and install `agent-plugin-forge` with their exact command pairs.
 
 [Install the Forge →](tutorials/install-forge.md)
 
@@ -28,17 +28,17 @@ publish phase: apply → validate → push → pull request
 
 Nothing is pushed and no pull request is opened during review. Merge requires separate authorization.
 
-[Publish your first skill →](tutorials/publish-skill.md)
+[Publish a skill with your agent →](how-to/publish-skill.md)
 
 ## 3. Install the published plugin
 
-After the pull request is merged, users refresh the configured marketplace and install the new plugin. VS Code users do both from the Plugins customization view.
+After the pull request is merged, users refresh the configured marketplace and install the new plugin. VS Code users trigger an extension update check, then install from the Plugins customization view.
 
 [Install a published plugin →](tutorials/install-published-plugin.md)
 
 ## Private and self-hosted marketplaces
 
-The same workflow supports private repositories, mirrors, GitHub Enterprise Server, and a persistent checkout in another local directory. Configure the Git marketplace URL once, then give the agent that Forge origin when publishing.
+Private GitHub repositories and GitHub Enterprise Server use the same reviewed publication workflow and can keep a persistent checkout in another local directory. Mirrors and other Git hosts support installation and review, but automated pull-request publication requires GitHub.com or GitHub Enterprise Server. Configure the selected Git marketplace source once, then give the agent that Forge origin when publishing.
 
 [Use a private Forge marketplace →](how-to/private-marketplace.md)
 

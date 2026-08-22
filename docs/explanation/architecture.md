@@ -14,7 +14,7 @@ clean Forge checkout
 portable package and pull request
 ```
 
-The origin is configurable. Public GitHub, a private repository, a mirror, and GitHub Enterprise Server use the same package layout. The selected origin also defines the publication target so private content is not redirected to the public marketplace.
+The origin is configurable. Public GitHub, a private repository, a mirror, and GitHub Enterprise Server use the same package layout. The selected origin stays part of the review plan so private content is not redirected to the public marketplace. The automated push-and-pull-request phase supports GitHub.com and GitHub Enterprise Server; another Git host needs its own reviewed contribution workflow.
 
 ## One source of truth
 
@@ -34,7 +34,7 @@ The root manifest never contains `skills`, `mcpServers`, or `category`. Skills a
 
 ## Two marketplace indexes, one package
 
-VS Code, GitHub Copilot, and current Codex releases consume the portable Agent Plugins package. Copilot and Codex use different marketplace schemas, so Forge derives two indexes that both point to the same directory:
+Qualified VS Code, GitHub Copilot CLI, and Codex releases consume the portable Agent Plugins package; [client compatibility evidence](../reference/compatibility.md) records the dated scope. Copilot and Codex use different marketplace schemas, so Forge derives two indexes that both point to the same directory:
 
 ```text
 portable plugins/<plugin>/

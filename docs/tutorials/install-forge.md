@@ -1,23 +1,22 @@
 # Install Agent Plugin Forge
 
-In this tutorial you will install Agent Plugin Forge directly from its marketplace and confirm that your client discovered the publication skill. You will not clone the repository.
+In this tutorial you will install Agent Plugin Forge and confirm that your client discovered the publication skill. You will not clone the repository yourself.
 
 Choose the client you use with your coding agent.
 
 ## Visual Studio Code
 
-Open the Command Palette and run **Preferences: Open User Settings (JSON)**. Merge these entries into the existing JSON object:
+Open the Command Palette and run **Chat: Install Plugin from Source**. Enter:
 
-```json
-{
-  "chat.plugins.enabled": true,
-  "chat.plugins.marketplaces": ["MiguelElGallo/agent-plugin-forge"]
-}
+```text
+https://github.com/MiguelElGallo/agent-plugin-forge
 ```
 
-Open the Extensions view and search for `@agentPlugins`. Select `agent-plugin-forge` and choose **Install**.
+VS Code identifies the repository as a plugin marketplace and clones it. Review the source URL in the trust prompt and choose **Trust** only when it matches the repository above. If VS Code presents the marketplace's plugin list, select `agent-plugin-forge`.
 
-Run **Chat: Configure Skills** from the Command Palette. `package-agent-skill` should appear. This is the deterministic proof that VS Code discovered the installed skill.
+Open the Extensions view and enter `@agentPlugins` if you want to inspect the result. `agent-plugin-forge` should show **Manage**, not **Install**.
+
+Run **Chat: Configure Skills...** from the Command Palette. Search for `package-agent-skill`; it should appear. This is the deterministic proof that VS Code discovered the installed skill.
 
 ## Codex
 
@@ -46,7 +45,9 @@ copilot plugin install agent-plugin-forge@agent-plugin-forge
 copilot plugin list
 ```
 
-The installed list should include `agent-plugin-forge`. Installing it does not create a Forge checkout; the publication skill creates a disposable checkout only when you ask it to review a skill.
+The installed list should include `agent-plugin-forge`. Installing it does not create an operating Forge checkout; the publication skill creates a disposable checkout only when you ask it to review a skill.
+
+If you use both Copilot CLI and VS Code, you do not need a second VS Code installation. VS Code automatically discovers plugins installed under Copilot CLI's plugin directory. Confirm `package-agent-skill` with **Chat: Configure Skills...** in VS Code.
 
 ## Check the trigger
 
@@ -56,4 +57,4 @@ Open a project containing an Agent Skill and ask:
 
 The response should distinguish the no-external-write review phase from the approved publication phase. Do not approve publication yet.
 
-Next, [publish your first skill](publish-skill.md).
+Next, [publish a skill with your agent](../how-to/publish-skill.md).

@@ -2,7 +2,7 @@
 
 In this chapter you will package the tutorial `release-notes` skill. The first command only plans the import. Nothing is copied until you repeat the exact plan with its approval hash.
 
-This contributor chapter starts from the clean checkout prepared in [Prepare a Forge development checkout](prepare-vscode.md). Users publishing through the installed skill can instead follow [Publish your first skill](publish-skill.md).
+This contributor chapter starts from the clean checkout prepared in [Prepare a Forge development checkout](prepare-vscode.md). Users publishing through the installed skill can instead follow [Publish a skill with your agent](../how-to/publish-skill.md).
 
 ## Look at the source
 

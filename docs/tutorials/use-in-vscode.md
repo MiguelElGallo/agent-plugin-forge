@@ -1,18 +1,6 @@
 # Load the plugin in Visual Studio Code
 
-Visual Studio Code can load Agent Plugins 1.0 directly. In this contributor chapter you will register a local package that has not been merged into a marketplace and verify that VS Code discovers its skill. Normal users install merged packages from `@agentPlugins` instead of configuring a filesystem path.
-
-## Enable agent plugins
-
-Open the Command Palette with **Shift+Command+P** on macOS or **Ctrl+Shift+P** on Windows and Linux. Run **Preferences: Open User Settings (JSON)**.
-
-Add this setting inside the JSON object:
-
-```json
-"chat.plugins.enabled": true
-```
-
-Keep any settings already in the file.
+Visual Studio Code can load Agent Plugins 1.0 directly. In this contributor chapter you will install a local package that has not been merged into a marketplace and verify that VS Code discovers its skill. Normal users install merged packages from the configured marketplace.
 
 ## Find the absolute plugin path
 
@@ -22,21 +10,17 @@ In the integrated terminal, run:
 pwd
 ```
 
-On Windows Git Bash, use `cygpath -m "$PWD/plugins/release-notes"` instead to obtain a VS Code-compatible `C:/...` path. Append `/plugins/release-notes` to the macOS or Linux path. Then add the result to the same user settings file:
+On Windows Git Bash, use `cygpath -m "$PWD/plugins/release-notes"` instead to obtain a VS Code-compatible `C:/...` path. Append `/plugins/release-notes` to the macOS or Linux path.
 
-```json
-"chat.pluginLocations": {
-  "/absolute/path/to/agent-plugin-forge/plugins/release-notes": true
-}
-```
+Open the Command Palette with **Shift+Command+P** on macOS or **Ctrl+Shift+P** on Windows and Linux. Run **Chat: Install Plugin from Source**, enter the absolute plugin path, review the trust prompt, and choose **Trust**.
 
-Save the settings. Run **Developer: Reload Window** from the Command Palette.
+VS Code recognizes the folder as a standalone local plugin and registers it for the current profile. No user-settings edit or window reload is required.
 
 ## Check it in the UI
 
 Run **Chat: Open Customizations** from the Command Palette and select **Plugins**. `release-notes` should appear as an enabled local plugin.
 
-Run **Chat: Configure Skills**. The `release-notes` skill should appear. This is the direct evidence that VS Code read `plugin.json` and discovered the immediate `skills/release-notes/SKILL.md` entry.
+Run **Chat: Configure Skills...**. The `release-notes` skill should appear. This is the direct evidence that VS Code read `plugin.json` and discovered the immediate `skills/release-notes/SKILL.md` entry.
 
 ## Check the same package with Copilot CLI
 
@@ -54,7 +38,7 @@ Open Copilot Chat in agent mode and send:
 
 > Use the release-notes skill. Version 0.1.0 contains one change: add the first portable release-notes plugin. No upgrade action is required.
 
-The response should use **Highlights** and **Changes**, and should not invent extra work. The exact prose can vary; the skill selection in **Chat: Configure Skills** is the deterministic discovery check.
+The response should use **Highlights** and **Changes**, and should not invent extra work. The exact prose can vary; the skill selection in **Chat: Configure Skills...** is the deterministic discovery check.
 
 ## Recap
 

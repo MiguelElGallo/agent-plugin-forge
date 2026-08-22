@@ -11,7 +11,6 @@ nav = [
   { "Start" = "index.md" },
   { "Tutorials" = [
     { "Install the Forge" = "tutorials/install-forge.md" },
-    { "Publish your first skill" = "tutorials/publish-skill.md" },
     { "Install a published plugin" = "tutorials/install-published-plugin.md" },
     { "Forge contributor tutorial" = [
       { "Prepare a development checkout" = "tutorials/prepare-vscode.md" },
@@ -33,6 +32,7 @@ nav = [
   ] },
   { "Reference" = [
     { "Client installation" = "reference/client-installation.md" },
+    { "Client compatibility evidence" = "reference/compatibility.md" },
     { "CLI" = "reference/cli.md" },
     { "Repository layout" = "reference/layout.md" },
     { "Metadata and provenance" = "reference/metadata.md" },

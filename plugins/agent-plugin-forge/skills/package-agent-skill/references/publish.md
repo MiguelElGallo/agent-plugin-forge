@@ -10,7 +10,7 @@ Resolve `scripts/bootstrap_forge.py` relative to this skill's `SKILL.md`, then r
 uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstrap_forge.py
 ```
 
-Use `--destination ABSOLUTE_PATH` when the user requests a persistent location. On later clean `main` sessions, add `--reuse`; the helper refuses a dirty checkout, another branch, or a different origin. Never overwrite an existing destination. Use `--origin` or `AGENT_PLUGIN_FORGE_ORIGIN` when the user selects a mirror, private repository, or GitHub Enterprise Server.
+Use `--destination ABSOLUTE_PATH` when the user requests a persistent location. On later clean `main` sessions, add `--reuse`; the helper refuses a dirty checkout, another branch, or a different origin. Never overwrite an existing destination. Use `--origin` or `AGENT_PLUGIN_FORGE_ORIGIN` when the user selects a mirror, private repository, or GitHub Enterprise Server. Marketplace installation does not configure the helper origin automatically. If the request implies a private or alternate Forge but does not identify its origin, stop and ask instead of using the public default.
 
 For a non-default origin, read [private-github.md](private-github.md). Derive the publication repository and authentication host from the bootstrap JSON instead of assuming GitHub.com or `MiguelElGallo`. A local/file origin is valid for review and acceptance testing, but the automated push-and-pull-request phase requires a GitHub.com or GitHub Enterprise Server origin.
 
@@ -50,4 +50,4 @@ copilot plugin marketplace update MARKETPLACE_NAME
 copilot plugin install PLUGIN_NAME@MARKETPLACE_NAME
 ```
 
-Run the matching refresh command before the install command so a client configured before the merge sees the new catalog entry. For the public Forge, `MARKETPLACE_NAME` is `agent-plugin-forge`. For another origin, derive it from that repository's marketplace metadata. VS Code users refresh and install the same plugin from **Chat: Open Customizations** → **Plugins**. Do not claim the marketplace install is available before the pull request is merged.
+Run the matching refresh command before the install command so a client configured before the merge sees the new catalog entry. For the public Forge, `MARKETPLACE_NAME` is `agent-plugin-forge`. For another origin, derive it from that repository's marketplace metadata. VS Code users run **Extensions: Check for Extension Updates**, then install the same plugin from **Chat: Open Customizations** → **Plugins** → **Browse Marketplace**. Do not claim the marketplace install is available before the pull request is merged.

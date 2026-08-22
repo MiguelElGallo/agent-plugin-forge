@@ -16,7 +16,7 @@ This boundary prevents a convenient one-prompt workflow from becoming implicit p
 
 ## The Forge origin is part of the boundary
 
-The bootstrap origin determines where the catalog comes from and where the pull request goes. Public GitHub, private repositories, mirrors, and GitHub Enterprise Server use the same workflow, but credentials and content never cross between them unless the user explicitly selects a different origin.
+The bootstrap origin determines where the catalog and review plan come from. GitHub.com and GitHub Enterprise Server origins also determine the automated pull-request target. Local sources and other Git hosts support review and acceptance, but publication requires a separately reviewed contribution workflow bound to the final repository URL. Credentials and content never cross between origins unless the user explicitly selects a different one.
 
 ## Installation follows merge
 
