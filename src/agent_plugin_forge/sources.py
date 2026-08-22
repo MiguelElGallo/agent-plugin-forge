@@ -1,3 +1,5 @@
+"""Resolve supported Agent Skill intake sources without mutating them."""
+
 from __future__ import annotations
 
 import hashlib

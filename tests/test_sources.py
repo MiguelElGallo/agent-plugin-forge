@@ -1,3 +1,5 @@
+"""Test resolution and validation of supported Agent Skill sources."""
+
 from __future__ import annotations
 
 import os

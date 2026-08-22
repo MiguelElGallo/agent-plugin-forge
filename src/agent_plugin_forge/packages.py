@@ -1,3 +1,5 @@
+"""Load and validate portable Agent Plugin packages from the catalog."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,3 +1,5 @@
+"""Test portable MCP configuration models, loading, and safety checks."""
+
 from __future__ import annotations
 
 import json

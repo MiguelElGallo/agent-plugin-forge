@@ -1,3 +1,5 @@
+"""Test the first-skill tutorial against the real forge command-line flow."""
+
 from __future__ import annotations
 
 import json

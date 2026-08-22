@@ -1,3 +1,5 @@
+"""Create forge branches and validate branch names and pull-request scope."""
+
 from __future__ import annotations
 
 import subprocess

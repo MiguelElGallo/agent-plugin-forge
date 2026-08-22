@@ -1,3 +1,5 @@
+"""Test generated client marketplace files against reviewed golden files."""
+
 from __future__ import annotations
 
 from pathlib import Path

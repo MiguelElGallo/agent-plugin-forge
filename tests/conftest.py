@@ -1,3 +1,5 @@
+"""Provide reusable fixtures and Git helpers for forge tests."""
+
 from __future__ import annotations
 
 import json

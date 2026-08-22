@@ -1,3 +1,5 @@
+"""Load and validate portable MCP server configurations."""
+
 from __future__ import annotations
 
 import os

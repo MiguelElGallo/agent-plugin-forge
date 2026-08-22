@@ -1,3 +1,5 @@
+"""Test safe creation and reuse of Agent Plugin Forge checkouts."""
+
 from __future__ import annotations
 
 import json

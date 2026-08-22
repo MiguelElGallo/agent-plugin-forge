@@ -1,3 +1,5 @@
+"""Test shared parsing, validation, hashing, and filesystem helpers."""
+
 from __future__ import annotations
 
 import os
