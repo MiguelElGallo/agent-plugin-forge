@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import stat
 from pathlib import Path
 from typing import Any
 
@@ -11,31 +10,20 @@ import yaml
 from license_expression import ExpressionError, get_spdx_licensing
 from semantic_version import Version
 
+from .errors import ForgeError
+from .filesystem import file_hashes as _file_hashes
+from .filesystem import inspect_regular_tree
+
 PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 PLUGIN_NAME_RE = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 SKILL_NAME_RE = re.compile(r"^(?!.*--)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
-SECRET_NAME_RE = re.compile(
-    r"(^|/)(\.env(?:\..*)?|id_(?:rsa|dsa|ecdsa|ed25519)|.*\.(?:pem|p12|pfx|key))$",
-    re.IGNORECASE,
-)
-SECRET_CONTENT_RES = (
-    re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-    re.compile(rb"gh[pousr]_[A-Za-z0-9_]{20,}"),
-    re.compile(rb"AKIA[0-9A-Z]{16}"),
-)
-MAX_FILE_BYTES = 10 * 1024 * 1024
-MAX_TREE_BYTES = 50 * 1024 * 1024
 SPDX_LICENSING = get_spdx_licensing()
-
-
-class ForgeError(ValueError):
-    """A user-correctable forge error."""
 
 
 def load_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ForgeError(f"Cannot read JSON from {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ForgeError(f"Expected a JSON object in {path}")
@@ -83,7 +71,10 @@ def validate_spdx_expression(value: object, *, label: str) -> str:
 
 
 def parse_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
-    text = skill_md.read_text(encoding="utf-8")
+    try:
+        text = skill_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ForgeError(f"Cannot read Agent Skill metadata from {skill_md}: {exc}") from exc
     if not text.startswith("---\n"):
         raise ForgeError(f"{skill_md} must start with YAML frontmatter")
     closing = text.find("\n---\n", 4)
@@ -142,48 +133,11 @@ def parse_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
 
 
 def inspect_tree(root: Path) -> list[Path]:
-    if not root.is_dir():
-        raise ForgeError(f"Source must be a skill directory: {root}")
-    files: list[Path] = []
-    folded: dict[str, str] = {}
-    total = 0
-    for path in sorted(root.rglob("*")):
-        relative = path.relative_to(root)
-        folded_name = relative.as_posix().casefold()
-        previous = folded.get(folded_name)
-        if previous is not None and previous != relative.as_posix():
-            raise ForgeError(f"Case-fold path collision: {previous} and {relative.as_posix()}")
-        folded[folded_name] = relative.as_posix()
-        mode = path.lstat().st_mode
-        if stat.S_ISLNK(mode):
-            raise ForgeError(f"Symlinks are not imported: {relative}")
-        if path.is_dir():
-            continue
-        if not stat.S_ISREG(mode):
-            raise ForgeError(f"Special files are not imported: {relative}")
-        size = path.stat().st_size
-        if size > MAX_FILE_BYTES:
-            raise ForgeError(f"File exceeds {MAX_FILE_BYTES} bytes: {relative}")
-        total += size
-        if total > MAX_TREE_BYTES:
-            raise ForgeError(f"Skill tree exceeds {MAX_TREE_BYTES} bytes")
-        relative_text = relative.as_posix()
-        if SECRET_NAME_RE.search(relative_text):
-            raise ForgeError(f"Possible secret file is not imported: {relative_text}")
-        data = path.read_bytes()
-        if any(pattern.search(data) for pattern in SECRET_CONTENT_RES):
-            raise ForgeError(f"Possible secret content is not imported: {relative_text}")
-        files.append(path)
-    if not (root / "SKILL.md").is_file():
-        raise ForgeError(f"Source does not contain SKILL.md at its root: {root}")
-    return files
+    return inspect_regular_tree(root, required_root_file="SKILL.md", tree_label="Source")
 
 
 def file_hashes(root: Path) -> dict[str, str]:
-    hashes: dict[str, str] = {}
-    for path in inspect_tree(root):
-        hashes[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return hashes
+    return _file_hashes(root, required_root_file="SKILL.md")
 
 
 def tree_hash(hashes: dict[str, str]) -> str:

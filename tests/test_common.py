@@ -5,12 +5,14 @@ from pathlib import Path
 
 import pytest
 
+import agent_plugin_forge.filesystem as filesystem_module
 from agent_plugin_forge.common import (
     ForgeError,
     inspect_tree,
     parse_semver,
     parse_skill_frontmatter,
 )
+from agent_plugin_forge.filesystem import inspect_regular_file, inspect_regular_tree
 
 
 def test_parse_skill_frontmatter(skill_source: Path) -> None:
@@ -82,5 +84,60 @@ def test_agent_skills_frontmatter_contract(
 @pytest.mark.skipif(os.name == "nt", reason="Windows symlink creation requires extra privileges")
 def test_rejects_symlink(skill_source: Path) -> None:
     (skill_source / "link").symlink_to(skill_source / "SKILL.md")
-    with pytest.raises(ForgeError, match="Symlinks"):
+    with pytest.raises(ForgeError, match="Links and junctions"):
         inspect_tree(skill_source)
+
+
+def test_rejects_oversized_file(skill_source: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(filesystem_module, "MAX_FILE_BYTES", 4)
+    (skill_source / "large.bin").write_bytes(b"12345")
+    with pytest.raises(ForgeError, match="exceeds 4 bytes"):
+        inspect_tree(skill_source)
+
+
+def test_regular_file_rejects_known_oversize_before_reading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "large.bin"
+    source.write_bytes(b"12345")
+    monkeypatch.setattr(filesystem_module, "MAX_FILE_BYTES", 4)
+
+    def fail_read(*args, **kwargs):
+        raise AssertionError("oversized file was opened")
+
+    monkeypatch.setattr(Path, "open", fail_read)
+    with pytest.raises(ForgeError, match="exceeds 4 bytes"):
+        inspect_regular_file(source)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="mkfifo is unavailable on Windows")
+def test_rejects_special_file_without_reading_it(skill_source: Path) -> None:
+    fifo = skill_source / "blocked.fifo"
+    os.mkfifo(fifo)
+    with pytest.raises(ForgeError, match="Special files"):
+        inspect_tree(skill_source)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="case-collision fixture requires POSIX")
+def test_rejects_case_fold_collision_when_filesystem_supports_it(
+    skill_source: Path,
+) -> None:
+    upper = skill_source / "Reference.txt"
+    lower = skill_source / "reference.TXT"
+    upper.write_text("upper\n", encoding="utf-8")
+    lower.write_text("lower\n", encoding="utf-8")
+    if upper.samefile(lower):
+        pytest.skip("filesystem is case-insensitive")
+    with pytest.raises(ForgeError, match="Case-fold path collision"):
+        inspect_tree(skill_source)
+
+
+def test_regular_file_rejects_directory(skill_source: Path) -> None:
+    with pytest.raises(ForgeError, match="regular, non-symlink"):
+        inspect_regular_file(skill_source)
+
+
+def test_regular_tree_requires_real_directory(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+    with pytest.raises(ForgeError, match="Cannot inspect"):
+        inspect_regular_tree(missing)

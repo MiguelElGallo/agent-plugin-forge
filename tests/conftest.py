@@ -45,11 +45,6 @@ def empty_forge(tmp_path: Path) -> Path:
         source_schemas,
         repo / "schemas" / "agent-plugins" / "1.0.0",
     )
-    source_codex_contract = Path(__file__).parents[1] / "schemas" / "codex" / "current"
-    shutil.copytree(
-        source_codex_contract,
-        repo / "schemas" / "codex" / "current",
-    )
     return repo
 
 

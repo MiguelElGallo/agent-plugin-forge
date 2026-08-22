@@ -2,29 +2,31 @@
 
 ## Source modes
 
-- Skill directory: stage the directory whose root contains `SKILL.md` and import it directly.
-- Lone `SKILL.md`: create a same-named staging directory and place the file there before import.
-- Existing Agent Plugin: select one immediate child of its `skills/` directory. Importing an entire plugin is a separate migration decision.
-- Remote Git source: clone into a temporary directory, resolve the exact commit, inspect the selected tree, and pass that local tree to the forge.
+- **Skill directory:** pass the directory whose root contains `SKILL.md`.
+- **Lone skill file:** pass the file named `SKILL.md`; Forge creates the destination directory.
+- **Existing Agent Plugin:** pass the plugin root. If it has several immediate skills, add `--source-skill NAME`.
+- **Remote Git source:** clone to a separate temporary directory, resolve the exact commit or tree, inspect the selected local content, and then import it.
 
-The forge deliberately does not fetch URLs. Separating retrieval from import makes network access, credentials, ref resolution, and review visible to the user.
+Forge deliberately does not fetch URLs. Separating retrieval from import keeps network access, credentials, ref resolution, and source selection visible.
 
 ## License evidence
 
-Do not infer that this repository's MIT license applies to imported third-party content. Confirm the upstream license and pass the applicable local license text with `--license-file`; the forge copies and hashes it inside the distributed plugin. Record the SPDX identifier in the import request. Stop when copying rights are unclear.
+Do not apply this repository's MIT license to third-party content. Confirm the applicable upstream license, record its SPDX expression, and pass the local license or notice text with `--license-file`. Forge copies and hashes that evidence inside the distributed plugin. Stop when copying rights are unclear.
 
 ## Provenance fields
 
 Record:
 
-- canonical source URL or a clear local-origin identifier;
-- immutable Git commit/tree identifier or a content-addressed revision;
-- source subpath;
-- import date;
-- SPDX license identifier;
-- every imported file's SHA-256 and the deterministic tree SHA-256;
-- transformations, which should normally be empty for a byte-identical import.
+- canonical source URL or a precise local-origin identifier;
+- a full immutable Git object ID or `sha256:<content digest>`;
+- source subpath and import date;
+- SPDX license and its evidence file;
+- transformations, normally empty for a byte-identical import.
+
+Forge computes per-file hashes, executable-mode bits, and the deterministic content-tree hash. The reviewed plan binds those values plus all destination and metadata choices.
 
 ## Review boundaries
 
-The importer rejects symlinks, special files, case-fold collisions, large trees, likely credential files, likely embedded secrets, duplicate destinations, and ambiguous skill structure. These checks reduce mistakes; they are not a malware scanner or a sandbox. Review all executable and instructional content before merging.
+Forge rejects root escapes, links, junctions, special files, case-fold collisions, oversized content, common secrets, duplicate destinations, invalid frontmatter, and ambiguous plugin sources. MCP validation additionally rejects unsafe commands, paths, URLs, headers, and missing packaged commands.
+
+These checks reduce mistakes; they are not a malware scanner or sandbox. Review all executable and instructional content before merging.

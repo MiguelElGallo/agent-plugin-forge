@@ -1,7 +1,7 @@
 [project]
 name = "agent-plugin-forge"
-version = "0.1.0"
-description = "Package Agent Skills as validated Agent Plugins 1.0 distributions."
+version = "0.2.0"
+description = "Package Agent Skills and MCP servers as validated Agent Plugins 1.0 distributions."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -31,7 +31,7 @@ requires = ["uv_build>=0.8.13,<0.9"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers --strict-config --cov=agent_plugin_forge --cov-report=term-missing --cov-fail-under=75"
+addopts = "--strict-markers --strict-config --cov=agent_plugin_forge --cov-report=term-missing --cov-fail-under=85"
 testpaths = ["tests"]
 
 [tool.ruff]
