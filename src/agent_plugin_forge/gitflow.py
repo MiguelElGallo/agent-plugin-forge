@@ -9,6 +9,8 @@ from .common import ForgeError, validate_name
 
 
 def _git(repo: Path, *args: str, check: bool = True) -> str:
+    """Run Git in a repository and return normalized standard output."""
+
     result = subprocess.run(
         ["git", *args],
         cwd=repo,
@@ -23,6 +25,8 @@ def _git(repo: Path, *args: str, check: bool = True) -> str:
 
 
 def _create_branch(repo: Path, branch: str, base: str) -> str:
+    """Create a clean branch from an aligned base after collision checks."""
+
     if _git(repo, "status", "--porcelain"):
         raise ForgeError("Refusing to create a branch from a dirty worktree")
     current = _git(repo, "branch", "--show-current")
@@ -44,23 +48,31 @@ def _create_branch(repo: Path, branch: str, base: str) -> str:
 
 
 def create_skill_branch(repo: Path, plugin: str, skill: str, base: str = "main") -> str:
+    """Create a scoped branch for importing or updating one skill."""
+
     validate_name(plugin, kind="plugin")
     validate_name(skill, kind="skill")
     return _create_branch(repo, f"skill/{plugin}/{skill}", base)
 
 
 def create_maintenance_branch(repo: Path, topic: str, base: str = "main") -> str:
+    """Create a forge maintenance branch for repository-wide tooling changes."""
+
     validate_name(topic, kind="skill")
     return _create_branch(repo, f"forge/{topic}", base)
 
 
 def create_plugin_branch(repo: Path, plugin: str, topic: str, base: str = "main") -> str:
+    """Create a scoped branch for MCP or plugin-wide changes."""
+
     validate_name(plugin, kind="plugin")
     validate_name(topic, kind="skill")
     return _create_branch(repo, f"plugin/{plugin}/{topic}", base)
 
 
 def validate_skill_branch(branch: str) -> tuple[str, str]:
+    """Validate a skill branch and return its plugin and skill names."""
+
     parts = branch.split("/")
     if len(parts) != 3 or parts[0] != "skill":
         raise ForgeError("Skill branches must use skill/<plugin>/<skill>")
@@ -70,6 +82,8 @@ def validate_skill_branch(branch: str) -> tuple[str, str]:
 
 
 def validate_maintenance_branch(branch: str) -> str:
+    """Validate a forge maintenance branch and return its topic."""
+
     parts = branch.split("/")
     if len(parts) != 2 or parts[0] != "forge":
         raise ForgeError("Maintenance branches must use forge/<topic>")
@@ -78,6 +92,8 @@ def validate_maintenance_branch(branch: str) -> str:
 
 
 def validate_plugin_branch(branch: str) -> tuple[str, str]:
+    """Validate a plugin branch and return its plugin and topic names."""
+
     parts = branch.split("/")
     if len(parts) != 3 or parts[0] != "plugin":
         raise ForgeError("Plugin branches must use plugin/<plugin>/<topic>")
@@ -87,6 +103,8 @@ def validate_plugin_branch(branch: str) -> tuple[str, str]:
 
 
 def validate_pr_scope(repo: Path, branch: str, base: str) -> list[str]:
+    """Validate changed paths against the branch type and return those paths."""
+
     if base != "main":
         raise ForgeError("Pull requests must target main")
     base_ref = f"origin/{base}"

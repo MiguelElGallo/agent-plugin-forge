@@ -17,6 +17,8 @@ from .models import Catalog, CatalogPlugin, McpConfiguration, PortableManifest, 
 
 @dataclass(frozen=True)
 class PortablePackage:
+    """Represent one validated portable plugin and its discovered components."""
+
     entry: CatalogPlugin
     manifest: PortableManifest
     root: Path
@@ -25,14 +27,20 @@ class PortablePackage:
 
     @property
     def has_skills(self) -> bool:
+        """Return whether the package contains at least one Agent Skill."""
+
         return bool(self.skill_roots)
 
     @property
     def has_mcp(self) -> bool:
+        """Return whether the package defines at least one MCP server."""
+
         return self.mcp is not None and bool(self.mcp.mcp_servers)
 
 
 def load_catalog(repo: Path) -> Catalog:
+    """Load and validate the repository's canonical plugin catalog."""
+
     try:
         return Catalog.model_validate(load_json(repo / "catalog" / "plugins.json"))
     except ValidationError as exc:
@@ -42,6 +50,8 @@ def load_catalog(repo: Path) -> Catalog:
 
 
 def _load_manifest(repo: Path, plugin_root: Path, expected_name: str) -> PortableManifest:
+    """Load a portable manifest and verify its schema and catalog identity."""
+
     path = plugin_root / "plugin.json"
     payload = load_json(path)
     schema = load_json(repo / "schemas" / "agent-plugins" / "1.0.0" / "plugin.schema.json")
@@ -67,6 +77,8 @@ def _load_manifest(repo: Path, plugin_root: Path, expected_name: str) -> Portabl
 
 
 def _skill_roots(plugin_root: Path) -> tuple[Path, ...]:
+    """Discover and validate immediate Agent Skill directories in a plugin."""
+
     skills_root = plugin_root / "skills"
     if not skills_root.exists():
         return ()
@@ -94,6 +106,8 @@ def _skill_roots(plugin_root: Path) -> tuple[Path, ...]:
 
 
 def load_package(repo: Path, entry: CatalogPlugin) -> PortablePackage:
+    """Load and validate one cataloged portable plugin package."""
+
     plugin_root = contained_child(repo / "plugins", entry.name, kind="plugin")
     inspect_regular_tree(plugin_root, required_root_file="plugin.json", tree_label="Plugin")
     if (plugin_root / ".codex-plugin").exists():
@@ -122,6 +136,8 @@ def load_package(repo: Path, entry: CatalogPlugin) -> PortablePackage:
 
 
 def load_packages(repo: Path) -> tuple[Catalog, tuple[PortablePackage, ...]]:
+    """Load the canonical catalog and every package referenced by it."""
+
     catalog = load_catalog(repo)
     packages = tuple(load_package(repo, entry) for entry in catalog.plugins)
     return catalog, packages

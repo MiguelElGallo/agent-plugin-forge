@@ -13,10 +13,14 @@ TOOL_NAME = "release_status"
 
 
 def response(request_id: object, result: object) -> dict[str, object]:
+    """Build a successful JSON-RPC response object."""
+
     return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
 
 def error(request_id: object, code: int, message: str) -> dict[str, object]:
+    """Build a JSON-RPC error response object."""
+
     return {
         "jsonrpc": "2.0",
         "id": request_id,
@@ -25,6 +29,8 @@ def error(request_id: object, code: int, message: str) -> dict[str, object]:
 
 
 def handle(message: dict[str, Any]) -> dict[str, object] | None:
+    """Handle one MCP JSON-RPC message and return an optional response."""
+
     request_id = message.get("id")
     method = message.get("method")
     if method == "initialize":
@@ -73,11 +79,15 @@ def handle(message: dict[str, Any]) -> dict[str, object] | None:
 
 
 def send(message: dict[str, object]) -> None:
+    """Write one compact JSON-RPC message to standard output."""
+
     sys.stdout.write(json.dumps(message, separators=(",", ":")) + "\n")
     sys.stdout.flush()
 
 
 def main() -> None:
+    """Serve newline-delimited MCP messages on standard input and output."""
+
     for line in sys.stdin:
         try:
             message = json.loads(line)

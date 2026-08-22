@@ -33,6 +33,8 @@ from .sources import SkillSource, resolve_skill_source
 
 
 def _manifest_repository_url(origin: str, *, repo: Path) -> str:
+    """Normalize a safe forge origin for a generated portable manifest."""
+
     if not origin:
         raise ForgeError("Forge origin is empty")
     if any(ord(character) < 32 or ord(character) == 127 for character in origin):
@@ -82,6 +84,8 @@ def _manifest_repository_url(origin: str, *, repo: Path) -> str:
 
 
 def _forge_repository_url(repo: Path) -> str:
+    """Read and normalize the forge checkout's required origin remote."""
+
     if not (repo / ".git").exists():
         raise ForgeError("Forge checkout must be a Git worktree with an origin remote")
     result = subprocess.run(
@@ -97,6 +101,8 @@ def _forge_repository_url(repo: Path) -> str:
 
 
 def _catalog_entry(catalog: dict[str, Any], plugin: str) -> dict[str, Any] | None:
+    """Return one named catalog entry after validating the entry collection."""
+
     entries = catalog.get("plugins", [])
     if not isinstance(entries, list):
         raise ForgeError("catalog/plugins.json plugins must be an array")
@@ -108,6 +114,8 @@ def _catalog_entry(catalog: dict[str, Any], plugin: str) -> dict[str, Any] | Non
 def _reject_duplicate_skill_destination(
     repo: Path, catalog: dict[str, Any], plugin: str, skill: str
 ) -> None:
+    """Reject a skill destination already owned by another cataloged plugin."""
+
     entries = catalog.get("plugins", [])
     if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
         raise ForgeError("catalog/plugins.json plugin entries must be objects")
@@ -125,12 +133,16 @@ def _reject_duplicate_skill_destination(
 
 
 def _validate_request_metadata(request: ImportRequest) -> None:
+    """Validate import metadata files before constructing a review plan."""
+
     content = inspect_regular_file(request.license_file, file_label="License file")
     if len(content) > MAX_FILE_BYTES:  # pragma: no cover - enforced by inspect_regular_file
         raise ForgeError(f"License file exceeds {MAX_FILE_BYTES} bytes")
 
 
 def _require_available_output(plugin_root: Path, target: Path, *, label: str) -> None:
+    """Require a new output path with only safe existing parent directories."""
+
     if target.exists() or target.is_symlink():
         raise ForgeError(f"{label} already exists: {target}")
     current = target.parent
@@ -141,6 +153,8 @@ def _require_available_output(plugin_root: Path, target: Path, *, label: str) ->
 
 
 def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Capture the current destination package state for plan binding."""
+
     if not plugin_root.exists():
         return None
     files = inspect_regular_tree(
@@ -162,6 +176,8 @@ def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, 
 
 
 def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
+    """Create a non-mutating, hash-bound plan for one Agent Skill import."""
+
     _validate_request_metadata(request)
     source = resolve_skill_source(request.source, request.source_skill)
     skill = source.name
@@ -267,6 +283,8 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
 
 
 def _copy_regular_tree(source: Path, destination: Path) -> None:
+    """Copy an existing plugin tree through the shared safe copier."""
+
     copy_regular_tree(source, destination)
 
 
@@ -276,6 +294,8 @@ def _copy_reviewed_skill(
     expected: dict[str, str],
     expected_modes: dict[str, bool],
 ) -> None:
+    """Copy a skill only while its reviewed hashes and modes still match."""
+
     destination.mkdir(parents=True)
     for relative, expected_hash in sorted(expected.items()):
         source_file = source.path_for(relative)
@@ -297,6 +317,8 @@ def _copy_reviewed_skill(
 
 
 def _enforce_branch(repo: Path, plugin: str, skill: str) -> None:
+    """Require imports in Git worktrees to use the scoped skill branch."""
+
     if not (repo / ".git").exists():
         return
     result = subprocess.run(
@@ -312,6 +334,8 @@ def _enforce_branch(repo: Path, plugin: str, skill: str) -> None:
 
 
 def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
+    """Apply an unchanged reviewed import plan as a transactional update."""
+
     plan = plan_import(repo, request)
     if request.expected_sha256 != plan.plan_sha256:
         raise ForgeError("--expected-sha256 must match the reviewed full-plan hash")
@@ -407,4 +431,6 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
 
 
 def default_import_date() -> str:
+    """Return today's local date in ISO format for CLI import defaults."""
+
     return date.today().isoformat()
