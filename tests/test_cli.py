@@ -3,14 +3,57 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-from agent_plugin_forge.cli import run
+from agent_plugin_forge.cli import app, run
 from agent_plugin_forge.common import ForgeError
 
 from .test_importer import apply_reviewed
+
+runner = CliRunner()
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def plain_output(output: str) -> str:
+    return ANSI_ESCAPE.sub("", output)
+
+
+def test_cli_help_exposes_typed_typer_commands() -> None:
+    result = runner.invoke(app, ["--help"])
+    output = plain_output(result.output)
+
+    assert result.exit_code == 0
+    assert "Package Agent Skills and MCP servers safely" in output
+    assert "--install-completion" in output
+    for command in (
+        "branch",
+        "maintenance-branch",
+        "plugin-branch",
+        "branch-name",
+        "pr-scope",
+        "import",
+        "generate",
+        "check",
+    ):
+        assert command in output
+
+
+def test_cli_without_command_preserves_error_exit_code() -> None:
+    result = runner.invoke(app)
+
+    assert result.exit_code == 2
+    assert "Usage: forge [OPTIONS] COMMAND [ARGS]..." in plain_output(result.output)
+
+
+def test_cli_reports_missing_required_typed_option() -> None:
+    result = runner.invoke(app, ["branch-name"])
+
+    assert result.exit_code == 2
+    assert "Missing option '--branch'" in plain_output(result.output)
 
 
 def test_cli_plans_without_writing(

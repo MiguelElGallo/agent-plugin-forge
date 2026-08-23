@@ -1,15 +1,17 @@
-"""Provide the command-line interface for Agent Plugin Forge workflows."""
+"""Provide the Typer command-line interface for Agent Plugin Forge workflows."""
 
 from __future__ import annotations
 
-import argparse
-import sys
+from datetime import date
 from pathlib import Path
+from typing import Annotated
 
+import typer
 from pydantic import ValidationError
 
 from .common import ForgeError, repository_root
-from .generator import generate, generation_drift
+from .generator import generate as generate_repository
+from .generator import generation_drift
 from .gitflow import (
     create_maintenance_branch,
     create_plugin_branch,
@@ -23,153 +25,229 @@ from .importer import ImportRequest, apply_import, default_import_date, plan_imp
 from .sources import resolve_skill_source
 from .validator import assert_valid_repository
 
-
-def _parser() -> argparse.ArgumentParser:
-    """Build the top-level command-line parser and its subcommands."""
-
-    parser = argparse.ArgumentParser(
-        prog="forge", description="Package Agent Skills and MCP servers safely"
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    branch = subparsers.add_parser("branch", help="Create a collision-safe branch for one skill")
-    branch.add_argument("--plugin", required=True)
-    branch.add_argument("--skill", required=True)
-    branch.add_argument("--base", default="main")
-
-    maintenance = subparsers.add_parser(
-        "maintenance-branch", help="Create a collision-safe branch for forge changes"
-    )
-    maintenance.add_argument("--topic", required=True)
-    maintenance.add_argument("--base", default="main")
-
-    plugin_branch = subparsers.add_parser(
-        "plugin-branch", help="Create a scoped branch for MCP or plugin-wide changes"
-    )
-    plugin_branch.add_argument("--plugin", required=True)
-    plugin_branch.add_argument("--topic", required=True)
-    plugin_branch.add_argument("--base", default="main")
-
-    branch_name = subparsers.add_parser("branch-name", help="Validate a PR branch name")
-    branch_name.add_argument("--branch", required=True)
-
-    pr_scope = subparsers.add_parser("pr-scope", help="Validate a PR diff against its branch scope")
-    pr_scope.add_argument("--branch", required=True)
-    pr_scope.add_argument("--base", required=True)
-
-    import_parser = subparsers.add_parser("import", help="Plan or apply a local skill import")
-    import_parser.add_argument("--source", type=Path, required=True)
-    import_parser.add_argument(
-        "--source-skill", help="Select one immediate skill when --source is an existing plugin"
-    )
-    import_parser.add_argument("--plugin")
-    import_parser.add_argument("--category")
-    import_parser.add_argument("--version")
-    import_parser.add_argument("--description")
-    import_parser.add_argument("--author")
-    import_parser.add_argument("--license", dest="license_id", required=True)
-    import_parser.add_argument("--license-file", type=Path, required=True)
-    import_parser.add_argument("--origin", required=True)
-    import_parser.add_argument("--revision", required=True)
-    import_parser.add_argument("--source-subpath", default=".")
-    import_parser.add_argument("--imported-at", default=default_import_date())
-    import_parser.add_argument("--transformation", action="append", default=[])
-    import_parser.add_argument("--expected-sha256")
-    import_parser.add_argument("--apply", action="store_true")
-
-    generate_parser = subparsers.add_parser("generate", help="Generate client distribution files")
-    generate_parser.add_argument("--check", action="store_true")
-    subparsers.add_parser("check", help="Validate the complete repository")
-    return parser
+app = typer.Typer(
+    name="forge",
+    help="Package Agent Skills and MCP servers safely.",
+    no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
+)
 
 
-def _request(args: argparse.Namespace) -> ImportRequest:
-    """Convert parsed import arguments into a validated import request."""
+@app.command("branch", help="Create a collision-safe branch for one skill.")
+def branch_command(
+    plugin: Annotated[str, typer.Option(help="Destination plugin name.")],
+    skill: Annotated[str, typer.Option(help="Skill name.")],
+    base: Annotated[str, typer.Option(help="Local and remote base branch.")] = "main",
+) -> None:
+    """Create a skill-scoped branch from the current remote base."""
 
-    source = args.source.absolute()
-    plugin = args.plugin or resolve_skill_source(source, args.source_skill).name
+    repo = repository_root()
+    typer.echo(f"Created {create_skill_branch(repo, plugin, skill, base)}")
+
+
+@app.command("maintenance-branch", help="Create a collision-safe branch for forge changes.")
+def maintenance_branch_command(
+    topic: Annotated[str, typer.Option(help="Maintenance topic used in the branch name.")],
+    base: Annotated[str, typer.Option(help="Local and remote base branch.")] = "main",
+) -> None:
+    """Create a forge-maintenance branch from the current remote base."""
+
+    repo = repository_root()
+    typer.echo(f"Created {create_maintenance_branch(repo, topic, base)}")
+
+
+@app.command("plugin-branch", help="Create a scoped branch for MCP or plugin-wide changes.")
+def plugin_branch_command(
+    plugin: Annotated[str, typer.Option(help="Plugin name.")],
+    topic: Annotated[str, typer.Option(help="Plugin-wide change topic.")],
+    base: Annotated[str, typer.Option(help="Local and remote base branch.")] = "main",
+) -> None:
+    """Create a plugin-scoped branch from the current remote base."""
+
+    repo = repository_root()
+    typer.echo(f"Created {create_plugin_branch(repo, plugin, topic, base)}")
+
+
+@app.command("branch-name", help="Validate a pull-request branch name.")
+def branch_name_command(
+    branch: Annotated[str, typer.Option(help="Branch name to validate.")],
+) -> None:
+    """Validate one supported scoped branch name."""
+
+    if branch.startswith("forge/"):
+        typer.echo(f"Valid maintenance branch for {validate_maintenance_branch(branch)}")
+    elif branch.startswith("plugin/"):
+        plugin, topic = validate_plugin_branch(branch)
+        typer.echo(f"Valid plugin branch for {plugin}/{topic}")
+    else:
+        plugin, skill = validate_skill_branch(branch)
+        typer.echo(f"Valid skill branch for {plugin}/{skill}")
+
+
+@app.command("pr-scope", help="Validate a pull-request diff against its branch scope.")
+def pr_scope_command(
+    branch: Annotated[str, typer.Option(help="Scoped pull-request branch name.")],
+    base: Annotated[str, typer.Option(help="Pull-request base branch.")],
+) -> None:
+    """Validate changed paths against the scope encoded by a branch name."""
+
+    changed = validate_pr_scope(repository_root(), branch, base)
+    typer.echo(f"Valid PR scope ({len(changed)} changed paths)")
+
+
+def _import_request(
+    *,
+    source: Path,
+    source_skill: str | None,
+    plugin: str | None,
+    category: str | None,
+    version: str | None,
+    description: str | None,
+    author: str | None,
+    license_id: str,
+    license_file: Path,
+    origin: str,
+    revision: str,
+    source_subpath: str,
+    imported_at: str,
+    expected_sha256: str | None,
+    transformations: list[str] | None,
+) -> ImportRequest:
+    """Build a validated import request from typed command options."""
+
+    absolute_source = source.absolute()
+    plugin_name = plugin or resolve_skill_source(absolute_source, source_skill).name
+    try:
+        import_date = date.fromisoformat(imported_at)
+    except ValueError as exc:
+        raise ForgeError("--imported-at must use the YYYY-MM-DD date form") from exc
     return ImportRequest(
-        source=source,
-        source_skill=args.source_skill,
-        plugin=plugin,
-        category=args.category,
-        version=args.version,
-        description=args.description,
-        author=args.author,
-        license_id=args.license_id,
-        license_file=args.license_file.absolute(),
-        origin=args.origin,
-        revision=args.revision,
-        source_subpath=args.source_subpath,
-        imported_at=args.imported_at,
-        expected_sha256=args.expected_sha256,
-        transformations=tuple(args.transformation),
+        source=absolute_source,
+        source_skill=source_skill,
+        plugin=plugin_name,
+        category=category,
+        version=version,
+        description=description,
+        author=author,
+        license_id=license_id,
+        license_file=license_file.absolute(),
+        origin=origin,
+        revision=revision,
+        source_subpath=source_subpath,
+        imported_at=import_date,
+        expected_sha256=expected_sha256,
+        transformations=tuple(transformations or ()),
     )
+
+
+@app.command("import", help="Plan or apply a local skill import.")
+def import_command(
+    source: Annotated[Path, typer.Option(help="Skill, SKILL.md, or plugin source path.")],
+    license_id: Annotated[str, typer.Option("--license", help="SPDX license expression.")],
+    license_file: Annotated[Path, typer.Option(help="Source license file to review and copy.")],
+    origin: Annotated[str, typer.Option(help="Canonical source repository URL.")],
+    revision: Annotated[str, typer.Option(help="Immutable source revision.")],
+    source_skill: Annotated[
+        str | None,
+        typer.Option(help="Immediate skill to select from a source plugin."),
+    ] = None,
+    plugin: Annotated[str | None, typer.Option(help="Destination plugin name.")] = None,
+    category: Annotated[str | None, typer.Option(help="Marketplace category.")] = None,
+    version: Annotated[str | None, typer.Option(help="Destination plugin version.")] = None,
+    description: Annotated[str | None, typer.Option(help="Destination plugin description.")] = None,
+    author: Annotated[str | None, typer.Option(help="Destination plugin author.")] = None,
+    source_subpath: Annotated[str, typer.Option(help="Path within the source repository.")] = ".",
+    imported_at: Annotated[str, typer.Option(help="Import date in YYYY-MM-DD form.")] = (
+        default_import_date()
+    ),
+    transformation: Annotated[
+        list[str] | None,
+        typer.Option(help="Reviewed transformation; repeat for multiple entries."),
+    ] = None,
+    expected_sha256: Annotated[
+        str | None,
+        typer.Option(help="Previously reviewed plan SHA-256 required by --apply."),
+    ] = None,
+    apply: Annotated[
+        bool,
+        typer.Option("--apply", help="Apply the reviewed import plan."),
+    ] = False,
+) -> None:
+    """Plan an import by default, or apply an exact reviewed plan."""
+
+    request = _import_request(
+        source=source,
+        source_skill=source_skill,
+        plugin=plugin,
+        category=category,
+        version=version,
+        description=description,
+        author=author,
+        license_id=license_id,
+        license_file=license_file,
+        origin=origin,
+        revision=revision,
+        source_subpath=source_subpath,
+        imported_at=imported_at,
+        expected_sha256=expected_sha256,
+        transformations=transformation,
+    )
+    repo = repository_root()
+    plan = apply_import(repo, request) if apply else plan_import(repo, request)
+    action = "Imported" if apply else "Plan"
+    typer.echo(
+        f"{action}: {plan.skill} -> plugins/{plan.plugin}/skills/{plan.skill} "
+        f"({plan.file_count} files, repository {plan.repository_url}, "
+        f"content sha256 {plan.content_sha256}, "
+        f"review plan sha256 {plan.plan_sha256})"
+    )
+    if not apply:
+        typer.echo("No files changed. Review the source and repeat with --apply.")
+
+
+@app.command("generate", help="Generate client distribution files.")
+def generate_command(
+    check: Annotated[
+        bool,
+        typer.Option(
+            "--check",
+            help="Report generated-file drift without writing.",
+        ),
+    ] = False,
+) -> None:
+    """Generate client indexes or verify that committed output is current."""
+
+    repo = repository_root()
+    if check:
+        errors = generation_drift(repo)
+        if errors:
+            raise ForgeError("\n".join(errors))
+    else:
+        generate_repository(repo)
+
+
+@app.command("check", help="Validate the complete repository.")
+def check_command() -> None:
+    """Validate all authoritative and generated repository content."""
+
+    assert_valid_repository(repository_root())
+    typer.echo("Agent Plugin Forge checks passed")
 
 
 def run(argv: list[str] | None = None) -> int:
-    """Run one forge command and return its process exit status."""
+    """Invoke the Typer app programmatically and return a successful status."""
 
-    args = _parser().parse_args(argv)
-    repo = repository_root()
-    if args.command == "branch":
-        print(f"Created {create_skill_branch(repo, args.plugin, args.skill, args.base)}")
-        return 0
-    if args.command == "maintenance-branch":
-        print(f"Created {create_maintenance_branch(repo, args.topic, args.base)}")
-        return 0
-    if args.command == "plugin-branch":
-        print(f"Created {create_plugin_branch(repo, args.plugin, args.topic, args.base)}")
-        return 0
-    if args.command == "branch-name":
-        if args.branch.startswith("forge/"):
-            print(f"Valid maintenance branch for {validate_maintenance_branch(args.branch)}")
-        elif args.branch.startswith("plugin/"):
-            plugin, topic = validate_plugin_branch(args.branch)
-            print(f"Valid plugin branch for {plugin}/{topic}")
-        else:
-            plugin, skill = validate_skill_branch(args.branch)
-            print(f"Valid skill branch for {plugin}/{skill}")
-        return 0
-    if args.command == "pr-scope":
-        changed = validate_pr_scope(repo, args.branch, args.base)
-        print(f"Valid PR scope ({len(changed)} changed paths)")
-        return 0
-    if args.command == "import":
-        request = _request(args)
-        plan = apply_import(repo, request) if args.apply else plan_import(repo, request)
-        action = "Imported" if args.apply else "Plan"
-        print(
-            f"{action}: {plan.skill} -> plugins/{plan.plugin}/skills/{plan.skill} "
-            f"({plan.file_count} files, repository {plan.repository_url}, "
-            f"content sha256 {plan.content_sha256}, "
-            f"review plan sha256 {plan.plan_sha256})"
-        )
-        if not args.apply:
-            print("No files changed. Review the source and repeat with --apply.")
-        return 0
-    if args.command == "generate":
-        if args.check:
-            errors = generation_drift(repo)
-            if errors:
-                raise ForgeError("\n".join(errors))
-        else:
-            generate(repo)
-        return 0
-    if args.command == "check":
-        assert_valid_repository(repo)
-        print("Agent Plugin Forge checks passed")
-        return 0
-    raise AssertionError(args.command)
+    app(args=argv, prog_name="forge", standalone_mode=False)
+    return 0
 
 
 def main() -> None:
     """Run the CLI entry point and translate expected errors into exit code 2."""
 
     try:
-        raise SystemExit(run())
+        app(prog_name="forge")
     except (ForgeError, ValidationError) as exc:
-        print(f"forge: {exc}", file=sys.stderr)
+        typer.echo(f"forge: {exc}", err=True)
         raise SystemExit(2) from exc
 
 

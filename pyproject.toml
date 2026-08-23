@@ -12,6 +12,7 @@ dependencies = [
   "pydantic>=2.12,<3",
   "pyyaml>=6.0.2,<7",
   "semantic-version>=2.10,<3",
+  "typer>=0.27.1,<0.28",
 ]
 
 [project.scripts]
