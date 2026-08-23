@@ -42,6 +42,13 @@ def test_cli_help_exposes_typed_typer_commands() -> None:
         assert command in output
 
 
+def test_cli_without_command_preserves_error_exit_code() -> None:
+    result = runner.invoke(app)
+
+    assert result.exit_code == 2
+    assert "Usage: forge [OPTIONS] COMMAND [ARGS]..." in plain_output(result.output)
+
+
 def test_cli_reports_missing_required_typed_option() -> None:
     result = runner.invoke(app, ["branch-name"])
 
