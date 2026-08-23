@@ -50,6 +50,13 @@ def initialize_remote(repo: Path, tmp_path: Path) -> Path:
     return remote
 
 
+def test_real_cli_translates_forge_errors(empty_forge: Path) -> None:
+    result = forge(empty_forge, "branch-name", "--branch", "invalid", expect=2)
+
+    assert result.stdout == ""
+    assert result.stderr == "forge: Skill branches must use skill/<plugin>/<skill>\n"
+
+
 def test_first_skill_tutorial_runs_through_the_real_cli(
     empty_forge: Path,
     skill_source: Path,

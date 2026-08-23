@@ -1,6 +1,20 @@
 # CLI reference
 
-Run commands from the repository root with `uv run forge`. Commands return `0` on success and `2` for a user-correctable forge or Pydantic contract error.
+The `forge` CLI is built with [Typer](https://typer.tiangolo.com/). Run commands from the repository root with `uv run forge`. Commands return `0` on success and `2` for invalid command input or a user-correctable forge or Pydantic contract error.
+
+Typer generates command and option help from the CLI's Python type annotations:
+
+```bash
+uv run forge --help
+uv run forge import --help
+```
+
+It also provides shell-completion helpers:
+
+```bash
+uv run forge --show-completion
+uv run forge --install-completion
+```
 
 Users publishing through the installed plugin do not run these commands manually. The agent bootstraps a checkout, presents the import plan, and uses the CLI after the review checkpoint.
 

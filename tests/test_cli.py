@@ -6,11 +6,40 @@ import os
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-from agent_plugin_forge.cli import run
+from agent_plugin_forge.cli import app, run
 from agent_plugin_forge.common import ForgeError
 
 from .test_importer import apply_reviewed
+
+runner = CliRunner()
+
+
+def test_cli_help_exposes_typed_typer_commands() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "Package Agent Skills and MCP servers safely" in result.output
+    assert "--install-completion" in result.output
+    for command in (
+        "branch",
+        "maintenance-branch",
+        "plugin-branch",
+        "branch-name",
+        "pr-scope",
+        "import",
+        "generate",
+        "check",
+    ):
+        assert command in result.output
+
+
+def test_cli_reports_missing_required_typed_option() -> None:
+    result = runner.invoke(app, ["branch-name"])
+
+    assert result.exit_code == 2
+    assert "Missing option '--branch'" in result.output
 
 
 def test_cli_plans_without_writing(
