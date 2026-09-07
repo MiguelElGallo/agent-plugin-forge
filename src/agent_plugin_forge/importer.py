@@ -277,6 +277,7 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         license_sha256=license_sha256,
         license_destination=license_destination,
         plan_sha256=plan_sha256,
+        review_payload=plan_payload,
         files=hashes,
         file_modes=file_modes,
     )
@@ -349,8 +350,9 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         raise ForgeError("Catalog changed after the reviewed plan")
     catalog = load_json(catalog_path)
 
-    with tempfile.TemporaryDirectory(prefix=".forge-import-", dir=repo) as temporary:
-        temporary_root = Path(temporary)
+    temporary_root = Path(tempfile.mkdtemp(prefix=".forge-import-", dir=repo))
+    preserve_recovery = False
+    try:
         staged_plugin = temporary_root / "plugin"
         if plan.creates_plugin:
             staged_plugin.mkdir()
@@ -411,22 +413,36 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
 
         backup = temporary_root / "backup"
         replaced_existing = plugin_root.exists()
+        backed_up = False
+        installed = False
         try:
             plugins_root.mkdir(parents=True, exist_ok=True)
             if replaced_existing:
                 os.replace(plugin_root, backup)
+                backed_up = True
             os.replace(staged_plugin, plugin_root)
+            installed = True
             os.replace(staged_catalog, catalog_path)
         except Exception:
-            if plugin_root.exists():
-                shutil.rmtree(plugin_root)
-            if replaced_existing and backup.exists():
-                os.replace(backup, plugin_root)
-            catalog_path.write_bytes(catalog_before)
+            try:
+                if installed:
+                    shutil.rmtree(plugin_root)
+                if backed_up:
+                    os.replace(backup, plugin_root)
+            except Exception as recovery_error:
+                preserve_recovery = True
+                raise ForgeError(
+                    f"Import rollback failed; recovery files preserved at {temporary_root}. "
+                    f"Original plugin backup, if created: {backup}"
+                ) from recovery_error
+            # Catalog replacement is the last operation; a failed rename leaves it intact.
             if not plugins_root_existed:
                 with suppress(OSError):
                     plugins_root.rmdir()
             raise
+    finally:
+        if not preserve_recovery:
+            shutil.rmtree(temporary_root)
     return plan
 
 

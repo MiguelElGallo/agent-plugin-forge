@@ -87,6 +87,30 @@ Without `--apply`, the command writes nothing and prints a full-plan SHA-256. Ap
 
 Existing bundles inherit their catalog category and require a strictly higher semantic version.
 
+Add `--json` to print only the complete plan as JSON, during either planning or application.
+The output includes the destination, source file hashes and executable modes, license digest,
+and `review_payload`: the exact metadata and destination state bound by `plan_sha256`.
+For bundles, `review_payload.targetState` includes existing file hashes, executable modes,
+and the catalog entry.
+The default text output remains a short summary.
+
+Save the planning output with shell redirection to a file outside the checkout:
+
+```bash
+uv run forge import [IMPORT_OPTIONS] --json > /absolute/path/review-plan.json
+```
+
+Review that file along with the source and license. Apply by repeating the same import options
+with `--apply --expected-sha256 HASH`, using the saved `plan_sha256` value. Preserve
+`--imported-at` from `review_payload.importedAt` when applying on a different day. The JSON
+file is a review artifact, not an input accepted by the CLI; Forge recomputes the plan before
+applying it and rejects a mismatched hash.
+
+If publication fails, Forge rolls back completed file moves. If rollback itself fails,
+Forge reports the recovery directory and keeps it for manual recovery. Its `backup`
+subdirectory, when created, contains the original plugin. Preserve these recovery files
+until the original plugin has been restored and the repository validated.
+
 ## `forge generate`
 
 Regenerates both client marketplaces as one staged transaction. Both indexes point to the authoritative portable packages.

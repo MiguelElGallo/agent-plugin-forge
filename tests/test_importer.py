@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 import agent_plugin_forge.importer as importer_module
 from agent_plugin_forge.common import ForgeError, load_json
+from agent_plugin_forge.filesystem import tree_snapshot
 from agent_plugin_forge.importer import (
     ImportRequest,
     _forge_repository_url,
@@ -472,3 +473,90 @@ def test_apply_rolls_back_plugin_and_catalog_on_publish_failure(
         apply_import(empty_forge, reviewed)
     assert not (empty_forge / "plugins" / "sample-skill").exists()
     assert (empty_forge / "catalog" / "plugins.json").read_bytes() == catalog_before
+
+
+@pytest.mark.parametrize(
+    "existing_bundle, failure_step", [(False, 1), (False, 2), (True, 1), (True, 2), (True, 3)]
+)
+def test_apply_preserves_original_tree_at_each_publish_failure(
+    empty_forge: Path, skill_source: Path, monkeypatch, existing_bundle: bool, failure_step: int
+) -> None:
+    if existing_bundle:
+        apply_reviewed(empty_forge, skill_source)
+        second = skill_source.parent / "second-skill"
+        second.mkdir()
+        (second / "SKILL.md").write_text(
+            "---\nname: second-skill\ndescription: A second test skill.\n---\nTest.\n",
+            encoding="utf-8",
+        )
+        import_request = request(second, version="0.2.0")
+    else:
+        import_request = request(skill_source)
+    plan = plan_import(empty_forge, import_request)
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
+    before = tree_snapshot(empty_forge / "plugins")
+    catalog_before = (empty_forge / "catalog" / "plugins.json").read_bytes()
+    real_replace = importer_module.os.replace
+    calls = 0
+
+    def fail_once(source, destination):
+        nonlocal calls
+        calls += 1
+        if calls == failure_step:
+            raise OSError("simulated publish failure")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(importer_module.os, "replace", fail_once)
+    with pytest.raises(OSError, match="simulated publish failure"):
+        apply_import(
+            empty_forge, import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
+        )
+    assert tree_snapshot(empty_forge / "plugins") == before
+    assert (empty_forge / "catalog" / "plugins.json").read_bytes() == catalog_before
+    assert not list(empty_forge.glob(".forge-import-*"))
+
+
+@pytest.mark.parametrize("recovery_failure", ["cleanup", "restore"])
+def test_failed_rollback_preserves_original_backup(
+    empty_forge: Path, skill_source: Path, monkeypatch, recovery_failure: str
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    plugin = empty_forge / "plugins" / "sample-skill"
+    before = tree_snapshot(plugin)
+    catalog = empty_forge / "catalog" / "plugins.json"
+    catalog_before = catalog.read_bytes()
+    second = skill_source.parent / "second-skill"
+    second.mkdir()
+    (second / "SKILL.md").write_text(
+        "---\nname: second-skill\ndescription: A second test skill.\n---\nTest.\n",
+        encoding="utf-8",
+    )
+    import_request = request(second, version="0.2.0")
+    plan = plan_import(empty_forge, import_request)
+    git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
+    real_replace = importer_module.os.replace
+    real_rmtree = importer_module.shutil.rmtree
+
+    def fail_replace(source, destination):
+        if destination == catalog:
+            raise OSError("simulated catalog failure")
+        if recovery_failure == "restore" and Path(source).name == "backup":
+            raise OSError("simulated restore failure")
+        real_replace(source, destination)
+
+    def fail_cleanup(path, *args, **kwargs):
+        if recovery_failure == "cleanup" and Path(path) == plugin:
+            raise OSError("simulated cleanup failure")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(importer_module.os, "replace", fail_replace)
+    monkeypatch.setattr(importer_module.shutil, "rmtree", fail_cleanup)
+    with pytest.raises(ForgeError, match="recovery files preserved") as error:
+        apply_import(
+            empty_forge, import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
+        )
+    recovery_dirs = list(empty_forge.glob(".forge-import-*"))
+    assert len(recovery_dirs) == 1
+    assert str(recovery_dirs[0]) in str(error.value)
+    assert tree_snapshot(recovery_dirs[0] / "backup") == before
+    assert catalog.read_bytes() == catalog_before
