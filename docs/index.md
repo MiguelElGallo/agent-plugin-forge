@@ -1,6 +1,14 @@
-# Install, publish, install
+# Agent Plugin Forge
 
 Agent Plugin Forge has three user journeys. Choose the one that matches what you want to do.
+
+| What you want to do | Start here |
+| --- | --- |
+| Install Forge for your coding agent | [Install the Forge](tutorials/install-forge.md) |
+| Publish an existing skill | [Publish a skill with your agent](how-to/publish-skill.md) |
+| Install a plugin already in the marketplace | [Install a published plugin](tutorials/install-published-plugin.md) |
+| Develop Forge or package an MCP server | [Prepare a development checkout](tutorials/prepare-vscode.md) |
+| Resolve an installation or import error | [Troubleshooting](how-to/troubleshoot.md) |
 
 ## 1. Install Agent Plugin Forge
 

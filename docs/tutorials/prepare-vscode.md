@@ -4,6 +4,19 @@ This is the contributor tutorial for changing Forge code or marketplace contents
 
 In this chapter you will open a fresh development checkout in Visual Studio Code, install the locked Python environment, and prove that the repository starts valid.
 
+## Prerequisites
+
+Install [Git](https://git-scm.com/downloads), [uv](https://docs.astral.sh/uv/getting-started/installation/), and Visual Studio Code. Forge requires Python 3.11 or newer; `uv sync --locked` can provision a compatible interpreter. You also need a GitHub account to create the tutorial fork.
+
+Confirm the tools are available in the terminal you will use:
+
+```bash
+git --version
+uv --version
+```
+
+Before committing, configure your [Git author identity](https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup). The tutorial uses macOS, Linux, or Windows Git Bash shell syntax.
+
 ## Fork and clone the repository
 
 Create a fork with GitHub's **Fork** button so you have a repository where you can push and merge the tutorial changes. Then, in a macOS, Linux, or Git Bash terminal, run:
@@ -29,6 +42,14 @@ uv sync --locked
 ```
 
 `uv` creates `.venv` and installs the exact dependency versions recorded in `uv.lock`. It does not install the forge globally.
+
+Inspect local branch readiness before making changes:
+
+```bash
+uv run forge doctor
+```
+
+Doctor reports missing prerequisites, checkout state, and alignment with cached `origin/main`. It does not fetch; the branch helper performs the live remote check later. Follow any reported recovery steps before starting a new branch.
 
 ## Check it
 

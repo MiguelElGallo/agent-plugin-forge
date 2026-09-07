@@ -6,16 +6,18 @@ import hashlib
 import json
 import os
 import re
+import shlex
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
+import agent_plugin_forge.cli as cli_module
 from agent_plugin_forge.cli import app, run
 from agent_plugin_forge.common import ForgeError, json_bytes
 
 from .conftest import git
-from .test_importer import apply_reviewed
+from .test_importer import apply_reviewed, request
 
 runner = CliRunner()
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -98,6 +100,7 @@ def test_cli_help_exposes_typed_typer_commands() -> None:
         "import",
         "generate",
         "check",
+        "doctor",
     ):
         assert command in output
 
@@ -252,3 +255,53 @@ def test_cli_generates_checks_drift_and_validates_repository(
     assert run(["generate", "--check"]) == 0
     assert run(["check"]) == 0
     assert "checks passed" in capsys.readouterr().out
+
+
+def test_printed_apply_command_preserves_review_across_days(
+    empty_forge: Path, skill_source: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(empty_forge)
+    monkeypatch.setattr(cli_module, "default_import_date", lambda: "2026-09-07")
+    source_request = request(
+        skill_source,
+        description="-Draft 'notes' with $HOME and $(touch unexpected)",
+        author='An "Author"',
+        transformations=("Reviewed 'literal' $value", "Second note"),
+    )
+    tokens = shlex.split(cli_module._apply_command(source_request, "0" * 64))[3:]
+    planning = [
+        token
+        for token in tokens
+        if not token.startswith(("--expected-sha256=", "--imported-at=")) and token != "--apply"
+    ]
+    result = runner.invoke(app, planning)
+    assert result.exit_code == 0, result.output
+    command = next(line for line in result.output.splitlines() if line.startswith("uv run forge"))
+    apply_args = shlex.split(command)[3:]
+    assert "--imported-at=2026-09-07" in apply_args
+    assert f"--description={source_request.description}" in apply_args
+    assert not (empty_forge / "plugins" / "sample-skill").exists()
+
+    monkeypatch.setattr(cli_module, "default_import_date", lambda: "2026-09-08")
+    git(empty_forge, "checkout", "-B", "skill/sample-skill/sample-skill")
+    applied = runner.invoke(app, [*apply_args, "--json"])
+    assert applied.exit_code == 0, applied.output
+    payload = json.loads(applied.output)["review_payload"]
+    assert payload["importedAt"] == "2026-09-07"
+    assert payload["description"] == source_request.description
+    assert payload["transformations"] == list(source_request.transformations)
+
+
+def test_doctor_json_and_text_report_issues_without_traceback(
+    empty_forge: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(empty_forge)
+    result = runner.invoke(app, ["doctor", "--json"])
+    assert result.exit_code == 2
+    report = json.loads(result.output)
+    assert report["ready"] is False
+    assert report["checks"]
+    text_result = runner.invoke(app, ["doctor"])
+    assert text_result.exit_code == 2
+    assert "cached, not fetched" in text_result.output
+    assert "Review the issues above" in text_result.output

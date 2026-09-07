@@ -47,7 +47,17 @@ def test_stdio_rejects_nonportable_commands(command: str) -> None:
 
 @pytest.mark.parametrize(
     "cwd",
-    ["data", "../data", "./../data", "${PLUGIN_ROOT}/../data", "${PLUGIN_DATA}/../data"],
+    [
+        "data",
+        "../data",
+        "./../data",
+        "./data/../../outside",
+        "./data\\..\\outside",
+        "${PLUGIN_ROOT}/../data",
+        "${PLUGIN_DATA}/../data",
+        "${PLUGIN_ROOT}suffix/data",
+        "${PLUGIN_DATA}suffix/data",
+    ],
 )
 def test_stdio_rejects_escaping_working_directories(cwd: str) -> None:
     with pytest.raises(ValidationError, match="cwd"):
@@ -239,19 +249,40 @@ def test_load_reports_json_schema_location(empty_forge: Path, skill_source: Path
         load_mcp_configuration(empty_forge, plugin_root)
 
 
-def test_relative_command_and_plugin_cwd_must_exist(empty_forge: Path, skill_source: Path) -> None:
+@pytest.mark.parametrize("cwd", ["./", "./bin", "./bin/nested", "${PLUGIN_ROOT}/bin"])
+def test_relative_command_and_plugin_cwd_must_exist(
+    empty_forge: Path, skill_source: Path, cwd: str
+) -> None:
     apply_reviewed(empty_forge, skill_source)
     plugin_root = empty_forge / "plugins" / "sample-skill"
     binary = plugin_root / "bin" / "server"
-    binary.parent.mkdir()
+    (binary.parent / "nested").mkdir(parents=True)
     binary.write_text("server\n", encoding="utf-8")
     binary.chmod(0o755)
     write_mcp(
         plugin_root,
-        {"type": "stdio", "command": "./bin/server", "cwd": "${PLUGIN_ROOT}/bin"},
+        {"type": "stdio", "command": "./bin/server", "cwd": cwd},
     )
     loaded = load_mcp_configuration(empty_forge, plugin_root)
     assert loaded is not None
+
+
+def test_relative_cwd_must_be_a_packaged_directory(empty_forge: Path, skill_source: Path) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    plugin_root = empty_forge / "plugins" / "sample-skill"
+    write_mcp(plugin_root, {"type": "stdio", "command": "python3", "cwd": "./data"})
+    with pytest.raises(ForgeError, match="cwd is not a packaged directory"):
+        load_mcp_configuration(empty_forge, plugin_root)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Creating symlinks requires Windows privileges")
+def test_relative_cwd_rejects_resolved_escape(empty_forge: Path, skill_source: Path) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    plugin_root = empty_forge / "plugins" / "sample-skill"
+    (plugin_root / "data").symlink_to(empty_forge, target_is_directory=True)
+    write_mcp(plugin_root, {"type": "stdio", "command": "python3", "cwd": "./data"})
+    with pytest.raises(ForgeError, match="cwd escapes the plugin root"):
+        load_mcp_configuration(empty_forge, plugin_root)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows does not expose portable execute bits")

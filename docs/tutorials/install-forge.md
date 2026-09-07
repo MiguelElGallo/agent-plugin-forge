@@ -57,4 +57,4 @@ Open a project containing an Agent Skill and ask:
 
 The response should distinguish the no-external-write review phase from the approved publication phase. Do not approve publication yet.
 
-Next, [publish a skill with your agent](../how-to/publish-skill.md).
+If discovery fails, use [Troubleshooting](../how-to/troubleshoot.md#the-plugin-or-skill-is-missing). Next, [publish a skill with your agent](../how-to/publish-skill.md).

@@ -52,7 +52,9 @@ uv run forge import \
   --source-subpath examples/tutorial/release-notes
 ```
 
-The output begins with `Plan:` and ends with a 64-character `review plan sha256`. The command also says `No files changed`.
+The summary begins with `Plan:` and contains a 64-character `review plan sha256`. The command also says `No files changed`, then prints a complete apply command that preserves the date and hash. Save that command for use after review.
+
+To keep a review for later, add `--json` and save the output outside the checkout as described in the [CLI reference](../reference/cli.md#forge-import). If you apply on another day, pass `--imported-at YYYY-MM-DD` with the original `review_payload.importedAt` date; the default date is part of the approval hash.
 
 ## Review the plan
 
@@ -67,7 +69,7 @@ Both commands should show no changes. Review every source file and the `LICENSE`
 
 ## Apply the reviewed plan
 
-Repeat the same command, adding the hash printed by the plan and `--apply`:
+After the exact plan is approved, use the printed apply command from the same Forge checkout. It includes the original `--imported-at` date, so it also works when approval happens on a later day. Alternatively, repeat the original command with the reviewed hash and `--apply` as below, preserving the original date explicitly if needed:
 
 ```bash
 uv run forge import \

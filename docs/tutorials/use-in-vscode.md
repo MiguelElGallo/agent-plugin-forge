@@ -12,9 +12,19 @@ pwd
 
 On Windows Git Bash, use `cygpath -m "$PWD/plugins/release-notes"` instead to obtain a VS Code-compatible `C:/...` path. Append `/plugins/release-notes` to the macOS or Linux path.
 
-Open the Command Palette with **Shift+Command+P** on macOS or **Ctrl+Shift+P** on Windows and Linux. Run **Chat: Install Plugin from Source**, enter the absolute plugin path, review the trust prompt, and choose **Trust**.
+## Register the local development folder
 
-VS Code recognizes the folder as a standalone local plugin and registers it for the current profile. No user-settings edit or window reload is required.
+Open the Command Palette with **Shift+Command+P** on macOS or **Ctrl+Shift+P** on Windows and Linux. Run **Preferences: Open User Settings (JSON)** and merge this entry into your settings, replacing the example path with the absolute plugin path:
+
+```json
+{
+  "chat.pluginLocations": {
+    "/absolute/path/to/agent-plugin-forge/plugins/release-notes": true
+  }
+}
+```
+
+On Windows, use the `C:/...` path from `cygpath`. Preserve existing entries in `chat.pluginLocations`. This is the [documented VS Code local development workflow](https://code.visualstudio.com/docs/agent-customization/agent-plugins#use-local-plugins); marketplace installation uses a separate source URL workflow. If the plugin view does not refresh, run **Developer: Reload Window**.
 
 ## Check it in the UI
 

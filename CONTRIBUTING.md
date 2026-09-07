@@ -6,8 +6,11 @@ Install the locked environment and start from a clean, current `main`:
 
 ```bash
 uv sync --locked
+uv run forge doctor
 uv run forge check
 ```
+
+`doctor` is an offline readiness check for starting a branch. It uses cached remote refs and does not authenticate or fetch; the branch helpers still check the live remote. Warnings about a feature branch or unfinished changes are expected during ongoing work.
 
 ## Choose the branch scope
 

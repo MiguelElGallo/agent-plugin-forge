@@ -350,7 +350,11 @@ class StdioServer(StrictModel):
             return value
         prefixes = ("./", "${PLUGIN_ROOT}", "${PLUGIN_DATA}")
         prefix = next(
-            (item for item in prefixes if value == item or value.startswith(f"{item}/")),
+            (
+                item
+                for item in prefixes
+                if value == item or value.startswith(f"{item.rstrip('/')}/")
+            ),
             None,
         )
         if prefix is None or not _safe_relative_parts(value, prefix=prefix):

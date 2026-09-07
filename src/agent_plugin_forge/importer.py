@@ -339,7 +339,15 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
 
     plan = plan_import(repo, request)
     if request.expected_sha256 != plan.plan_sha256:
-        raise ForgeError("--expected-sha256 must match the reviewed full-plan hash")
+        raise ForgeError(
+            "--expected-sha256 must match the reviewed full-plan hash. No import files changed. "
+            f"Recomputed plan: {plan.plan_sha256}; import date: {request.imported_at.isoformat()}. "
+            "A hash alone cannot identify which input changed. Compare a fresh plan without "
+            "--apply (use --json) with the saved review. If resuming on another day, preserve "
+            "the original review_payload.importedAt using --imported-at YYYY-MM-DD. "
+            "Changes to source bytes, modes, license, metadata, origin, or destination require "
+            "review and approval of a new plan; do not simply replace the approved hash."
+        )
     _enforce_branch(repo, plan.plugin, plan.skill)
     plugin_root = contained_child(repo / "plugins", request.plugin, kind="plugin")
     plugins_root = plugin_root.parent

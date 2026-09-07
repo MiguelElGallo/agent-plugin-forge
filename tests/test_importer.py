@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,25 @@ def test_plan_does_not_write(empty_forge: Path, skill_source: Path) -> None:
     plan = plan_import(empty_forge, request(skill_source))
     assert plan.creates_plugin
     assert not (empty_forge / "plugins" / "sample-skill").exists()
+
+
+def test_hash_mismatch_explains_recovery_without_writes(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    import_request = request(skill_source)
+    plan = plan_import(empty_forge, import_request)
+    later = import_request.model_copy(
+        update={"imported_at": date(2026, 8, 22), "expected_sha256": plan.plan_sha256}
+    )
+    before = tree_snapshot(empty_forge)
+    with pytest.raises(ForgeError) as raised:
+        apply_import(empty_forge, later)
+    message = str(raised.value)
+    assert "import date: 2026-08-22" in message
+    assert "A hash alone cannot identify which input changed" in message
+    assert "--imported-at YYYY-MM-DD" in message
+    assert "do not simply replace the approved hash" in message
+    assert tree_snapshot(empty_forge) == before
 
 
 def test_apply_preserves_content_and_records_provenance(

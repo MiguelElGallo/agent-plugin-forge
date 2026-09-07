@@ -23,6 +23,8 @@ Place the portable configuration at `plugins/my-plugin/mcp.json`. It must target
 
 Forge supports `stdio`, `streamable-http`, and legacy `sse`. Because Codex does not support Agent Plugins SSE, set `codexCompatibility` to `false` for any package that uses it. Forge rejects a Codex-compatible SSE listing, command strings, path escapes, non-loopback HTTP, URL credentials or fragments, invalid or case-duplicate headers, embedded credential headers, root-variable overrides, missing packaged commands, and unsafe files.
 
+For stdio, omit `cwd` to use the plugin root, or use a contained directory such as `"cwd": "./data"` or `"cwd": "${PLUGIN_ROOT}/data"`. Plugin-relative directories must exist in the package; traversal and resolved escapes remain invalid. `${PLUGIN_DATA}` supports client-managed persistent data directories.
+
 ```bash
 uv run forge generate
 uv run forge check
