@@ -34,7 +34,7 @@ The root manifest never contains `skills`, `mcpServers`, or `category`. Skills a
 
 ## Two marketplace indexes, one package
 
-Qualified VS Code, GitHub Copilot CLI, and Codex releases consume the portable Agent Plugins package; [client compatibility evidence](../reference/compatibility.md) records the dated scope. Copilot and Codex use different marketplace schemas, so Forge derives two indexes that both point to the same directory:
+Forge targets clients that support the portable Agent Plugins package; [client compatibility evidence](../reference/compatibility.md) distinguishes command checks, discovery, and live installation. Copilot and Codex use different marketplace schemas, so Forge derives two indexes that both point to the same directory:
 
 ```text
 portable plugins/<plugin>/
@@ -42,13 +42,14 @@ portable plugins/<plugin>/
         └──> .agents/plugins/marketplace.json
 ```
 
-The indexes are validated independently because their distribution metadata differs. No package translation occurs, so skills, supported MCP configuration, runtime files, and environment-variable semantics remain identical across clients. Forge rejects hidden `.codex-plugin` overlays and prevents SSE packages from claiming Codex compatibility, keeping the declared execution surface honest.
+The indexes are validated independently because their distribution metadata differs. No package translation occurs: each client receives the same skills, MCP configuration, and runtime files. The standard defines environment-variable semantics, but actual client execution still needs runtime acceptance. Forge rejects hidden `.codex-plugin` overlays and prevents SSE packages from claiming Codex compatibility. See [Standards and Forge policy](../reference/standards.md) for the supported profile and working-directory rules.
 
 ## Cohesive code boundaries
 
 The implementation mirrors those responsibilities:
 
 - `sources.py` resolves supported intake shapes;
+- `doctor.py` inspects local prerequisites and cached checkout readiness without fetching;
 - `filesystem.py` owns path, file-type, size, secret, copying, and mode safety;
 - `models.py` owns Pydantic data contracts;
 - `mcp.py` owns portable MCP semantics;

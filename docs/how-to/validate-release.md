@@ -25,7 +25,7 @@ Before release, record exact versions and test both the installed user journey a
 2. run the packaged bootstrap helper against an isolated Git remote and verify temporary creation, alternate origin, persistent reuse, clean `main`, and exact revision;
 3. install the same package in isolated Copilot CLI and Codex homes;
 4. open a disposable contributor clone in VS Code and run the manual tutorial commands;
-5. install a local portable fixture with **Chat: Install Plugin from Source**, confirm its skill and MCP server, and call a credential-free tool.
+5. register a local portable fixture using [`chat.pluginLocations`](../tutorials/use-in-vscode.md), confirm its skill and MCP server, and call a credential-free tool.
 
 Marketplace command pairs:
 

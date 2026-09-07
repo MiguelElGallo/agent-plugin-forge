@@ -33,17 +33,19 @@ uv run forge import \
   --source-subpath skills/release-notes
 ```
 
+Replace the example origin, revision, author, and license with evidence from your actual source. The example revision above is a placeholder, not a revision to reuse. For a newly authored skill, [record its source revision first](create-skill.md#record-the-source-and-license).
+
 For an existing plugin with several skills, point `--source` at the plugin root and add `--source-skill release-notes`.
 
 ## Apply the exact plan
 
-Review the source, license, destination, and plan output. Repeat the same command with:
+Review the source, license, destination, and plan output. After approval, run the complete apply command printed by the text plan from the same Forge checkout. It preserves the original date and safely quotes the options for POSIX shells and Git Bash. Alternatively, repeat the same command with:
 
 ```text
 --expected-sha256 HASH_FROM_THE_PLAN --apply
 ```
 
-Any change to source bytes, executable modes, license evidence, metadata, or destination produces a different plan hash and blocks the apply.
+Any change to source bytes, executable modes, license evidence, metadata, or destination produces a different plan hash and blocks the apply. Save the plan with `--json` if you will resume later. On a different day, preserve its `review_payload.importedAt` with `--imported-at YYYY-MM-DD`; see the [CLI reference](../reference/cli.md#forge-import).
 
 ## Check it
 

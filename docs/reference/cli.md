@@ -39,6 +39,21 @@ Creates `skill/<plugin>/<skill>` from a clean local base aligned with `origin/ma
 uv run forge branch --plugin NAME --skill NAME [--base main]
 ```
 
+## `forge doctor`
+
+Inspect local prerequisites and readiness to start a new branch:
+
+```bash
+uv run forge doctor
+uv run forge doctor --json
+```
+
+Doctor checks the running Python version, availability of Git and `uv`, the Git checkout, current branch, worktree cleanliness, a safe configured origin, and alignment of local `main` with cached `origin/main`. GitHub CLI availability is informational because review does not require publication authentication. If Git clean/process filters are configured, doctor skips the worktree-status probe and reports a warning so those programs cannot run. Submodule contents are not inspected; tracked submodules also produce a warning instead of a complete-readiness claim.
+
+The JSON report contains `ready` and a `checks` array with `name`, `status`, and `detail`. Exit status is `0` when ready and `2` when a warning or error needs attention. A feature branch or dirty worktree can be normal during ongoing work; the result describes readiness to **start a new branch**, not whether your current work is valid.
+
+Doctor does not fetch, contact the remote, authenticate, refresh the Git index, or run imported content. Cached alignment can be stale. Branch helpers still perform their live remote checks, and `forge check` still validates packages. Run doctor from a Forge checkout. Like any `uv run` command, the launcher may prepare its Python environment before doctor starts; `uv sync --locked` prepares that environment separately.
+
 ## `forge plugin-branch`
 
 Creates `plugin/<plugin>/<topic>` for MCP or plugin-wide changes.
@@ -87,12 +102,16 @@ Without `--apply`, the command writes nothing and prints a full-plan SHA-256. Ap
 
 Existing bundles inherit their catalog category and require a strictly higher semantic version.
 
+Import adds a new skill destination. It refuses to overwrite an existing `skills/<name>` directory, even with a higher version; it is not an in-place skill-update command. Updating an installed client plugin is a separate [client operation](client-installation.md#update-an-installed-plugin).
+
 Add `--json` to print only the complete plan as JSON, during either planning or application.
 The output includes the destination, source file hashes and executable modes, license digest,
 and `review_payload`: the exact metadata and destination state bound by `plan_sha256`.
 For bundles, `review_payload.targetState` includes existing file hashes, executable modes,
 and the catalog entry.
 The default text output remains a short summary.
+
+For a no-write plan, text output also prints a complete apply command for a POSIX shell or Windows Git Bash. It preserves all reviewed import options, absolute source and license paths, the date, and the plan hash. Run it from the reported Forge checkout only after approval. The command is not PowerShell or Command Prompt syntax. `--json` continues to emit only the review artifact, with no command text added.
 
 Save the planning output with shell redirection to a file outside the checkout:
 
@@ -105,6 +124,8 @@ with `--apply --expected-sha256 HASH`, using the saved `plan_sha256` value. Pres
 `--imported-at` from `review_payload.importedAt` when applying on a different day. The JSON
 file is a review artifact, not an input accepted by the CLI; Forge recomputes the plan before
 applying it and rejects a mismatched hash.
+
+On a hash mismatch, the error reports the recomputed hash and import date, then explains how to compare a fresh JSON plan with the saved review. It cannot identify the changed field from a hash alone. The displayed recomputed hash does not authorize a changed plan; preserve the original date or review and approve the new inputs.
 
 If publication fails, Forge rolls back completed file moves. If rollback itself fails,
 Forge reports the recovery directory and keeps it for manual recovery. Its `backup`

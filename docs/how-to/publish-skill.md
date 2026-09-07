@@ -8,7 +8,7 @@ You need:
 
 - Agent Plugin Forge installed through [Install Agent Plugin Forge](../tutorials/install-forge.md);
 - a local skill directory or lone `SKILL.md`;
-- Git and `uv` for the review checkout;
+- [Git](https://git-scm.com/downloads) and [uv](https://docs.astral.sh/uv/getting-started/installation/) available to the agent for the review checkout;
 - GitHub CLI authentication only when you approve publication.
 
 ## Prepare the review
@@ -38,6 +38,6 @@ Send an approval that includes the exact hash and scope:
 
 Add fork creation only when the authenticated GitHub account cannot push upstream. Add merge only when you intend to authorize it; the agent must still verify the exact PR head SHA and green required checks.
 
-If the plan changes, review and approve the new hash instead. A prior approval never applies to changed source or destination state.
+If the plan changes, review and approve the new hash instead. A prior approval never applies to changed source or destination state. The import date is also part of the hash: when resuming on another day, the agent must preserve the reviewed `--imported-at` date. See [recover from a plan mismatch](troubleshoot.md#the-review-plan-hash-no-longer-matches).
 
 After the pull request merges, continue with [Install a published plugin](../tutorials/install-published-plugin.md).

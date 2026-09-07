@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import shlex
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -10,6 +12,7 @@ import typer
 from pydantic import ValidationError
 
 from .common import ForgeError, repository_root
+from .doctor import diagnose
 from .generator import generate as generate_repository
 from .generator import generation_drift
 from .gitflow import (
@@ -140,6 +143,32 @@ def _import_request(
     )
 
 
+def _apply_command(request: ImportRequest, plan_sha256: str) -> str:
+    """Render a POSIX-shell command preserving the reviewed options and date."""
+
+    options = {
+        "source": str(request.source),
+        "source-skill": request.source_skill,
+        "plugin": request.plugin,
+        "category": request.category,
+        "version": request.version,
+        "description": request.description,
+        "author": request.author,
+        "license": request.license_id,
+        "license-file": str(request.license_file),
+        "origin": request.origin,
+        "revision": request.revision,
+        "source-subpath": request.source_subpath,
+        "imported-at": request.imported_at.isoformat(),
+        "expected-sha256": plan_sha256,
+    }
+    arguments = ["uv", "run", "forge", "import"]
+    arguments.extend(f"--{name}={value}" for name, value in options.items() if value is not None)
+    arguments.extend(f"--transformation={value}" for value in request.transformations)
+    arguments.append("--apply")
+    return shlex.join(arguments)
+
+
 @app.command("import", help="Plan or apply a local skill import.")
 def import_command(
     source: Annotated[Path, typer.Option(help="Skill, SKILL.md, or plugin source path.")],
@@ -157,9 +186,9 @@ def import_command(
     description: Annotated[str | None, typer.Option(help="Destination plugin description.")] = None,
     author: Annotated[str | None, typer.Option(help="Destination plugin author.")] = None,
     source_subpath: Annotated[str, typer.Option(help="Path within the source repository.")] = ".",
-    imported_at: Annotated[str, typer.Option(help="Import date in YYYY-MM-DD form.")] = (
-        default_import_date()
-    ),
+    imported_at: Annotated[
+        str | None, typer.Option(help="Import date in YYYY-MM-DD form; defaults to today.")
+    ] = None,
     transformation: Annotated[
         list[str] | None,
         typer.Option(help="Reviewed transformation; repeat for multiple entries."),
@@ -192,7 +221,7 @@ def import_command(
         origin=origin,
         revision=revision,
         source_subpath=source_subpath,
-        imported_at=imported_at,
+        imported_at=imported_at if imported_at is not None else default_import_date(),
         expected_sha256=expected_sha256,
         transformations=transformation,
     )
@@ -209,7 +238,29 @@ def import_command(
         f"review plan sha256 {plan.plan_sha256})"
     )
     if not apply:
-        typer.echo("No files changed. Review the source and repeat with --apply.")
+        typer.echo("No files changed. Review the source and obtain approval for this exact plan.")
+        typer.echo(f"After approval, run from {repo} (POSIX shell / Git Bash):")
+        typer.echo(_apply_command(request, plan.plan_sha256))
+
+
+@app.command("doctor", help="Inspect local prerequisites and checkout readiness without writes.")
+def doctor_command(
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Print the local diagnostic report as JSON only.")
+    ] = False,
+) -> None:
+    """Report offline readiness to start a new branch, returning 2 for issues."""
+
+    report = diagnose(repository_root())
+    if json_output:
+        typer.echo(json.dumps(report, indent=2))
+    else:
+        typer.echo("Forge doctor: local checks only; origin/main is cached, not fetched.")
+        for check in report["checks"]:
+            typer.echo(f"{check['status'].upper()} {check['name']}: {check['detail']}")
+        typer.echo("Ready to start a branch." if report["ready"] else "Review the issues above.")
+    if not report["ready"]:
+        raise typer.Exit(code=2)
 
 
 @app.command("generate", help="Generate client distribution files.")

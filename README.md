@@ -87,6 +87,8 @@ See [Use a private Forge marketplace](https://miguelelgallo.github.io/agent-plug
 
 The default is one skill per plugin. Bundles are explicit. Skill-only, MCP-only, and mixed packages are supported.
 
+See [Standards and Forge policy](docs/reference/standards.md) for the dated standards review, working-directory support, and client compatibility policy. For setup failures or rejected imports, start with [Troubleshooting](docs/how-to/troubleshoot.md).
+
 ## Contribute to the Forge itself
 
-Clone the repository only when changing Forge code, schemas, tests, documentation, or marketplace content directly. Start with [Contributing](CONTRIBUTING.md) and the [Forge contributor tutorial](https://miguelelgallo.github.io/agent-plugin-forge/tutorials/prepare-vscode/).
+Clone the repository only when changing Forge code, schemas, tests, documentation, or marketplace content directly. Start with [Contributing](CONTRIBUTING.md) and the [Forge contributor tutorial](https://miguelelgallo.github.io/agent-plugin-forge/tutorials/prepare-vscode/). Run `uv run forge doctor` for an offline prerequisite and checkout-readiness report. Import plans print a date-preserving apply command to use after approval.

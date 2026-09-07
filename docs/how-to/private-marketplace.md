@@ -48,7 +48,7 @@ To register the marketplace without installing immediately, add it to VS Code us
 }
 ```
 
-All three clients accept a full HTTPS Git marketplace URL. Their Git operations use your existing credential helper. If your organization uses SSH, provide the supported SSH remote form for each client and rely on the existing SSH configuration. Never embed a personal access token in the URL.
+All three clients document full HTTPS Git marketplace URLs. HTTPS Git authentication may use a configured credential helper; SSH uses the SSH agent and configuration. Confirm that the selected client can authenticate to the intended host under your organization's policy. Never embed a personal access token in the URL. Live private-host authentication has not been qualified in the [recorded compatibility evidence](../reference/compatibility.md).
 
 Installing from a private marketplace does not automatically change the publication helper's default origin. Include the private Forge URL in every review or reuse prompt. As an alternative, set `AGENT_PLUGIN_FORGE_ORIGIN` in the environment that launches your agent client.
 

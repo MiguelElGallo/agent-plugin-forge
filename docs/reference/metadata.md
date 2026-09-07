@@ -6,6 +6,8 @@
 
 Every distributed forge plugin requires a semantic version and description.
 
+Forge also requires an SPDX license expression. These are Forge distribution requirements beyond the portable schema; see [Standards and Forge policy](standards.md).
+
 ## Catalog metadata
 
 `catalog/plugins.json` adds only distribution information:
