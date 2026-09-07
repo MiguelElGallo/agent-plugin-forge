@@ -350,8 +350,9 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         raise ForgeError("Catalog changed after the reviewed plan")
     catalog = load_json(catalog_path)
 
-    with tempfile.TemporaryDirectory(prefix=".forge-import-", dir=repo) as temporary:
-        temporary_root = Path(temporary)
+    temporary_root = Path(tempfile.mkdtemp(prefix=".forge-import-", dir=repo))
+    preserve_recovery = False
+    try:
         staged_plugin = temporary_root / "plugin"
         if plan.creates_plugin:
             staged_plugin.mkdir()
@@ -423,15 +424,25 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
             installed = True
             os.replace(staged_catalog, catalog_path)
         except Exception:
-            if installed:
-                shutil.rmtree(plugin_root)
-            if backed_up:
-                os.replace(backup, plugin_root)
+            try:
+                if installed:
+                    shutil.rmtree(plugin_root)
+                if backed_up:
+                    os.replace(backup, plugin_root)
+            except Exception as recovery_error:
+                preserve_recovery = True
+                raise ForgeError(
+                    f"Import rollback failed; recovery files preserved at {temporary_root}. "
+                    f"Original plugin backup, if created: {backup}"
+                ) from recovery_error
             # Catalog replacement is the last operation; a failed rename leaves it intact.
             if not plugins_root_existed:
                 with suppress(OSError):
                     plugins_root.rmdir()
             raise
+    finally:
+        if not preserve_recovery:
+            shutil.rmtree(temporary_root)
     return plan
 
 

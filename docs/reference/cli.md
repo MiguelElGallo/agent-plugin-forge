@@ -106,6 +106,11 @@ with `--apply --expected-sha256 HASH`, using the saved `plan_sha256` value. Pres
 file is a review artifact, not an input accepted by the CLI; Forge recomputes the plan before
 applying it and rejects a mismatched hash.
 
+If publication fails, Forge rolls back completed file moves. If rollback itself fails,
+Forge reports the recovery directory and keeps it for manual recovery. Its `backup`
+subdirectory, when created, contains the original plugin. Preserve these recovery files
+until the original plugin has been restored and the repository validated.
+
 ## `forge generate`
 
 Regenerates both client marketplaces as one staged transaction. Both indexes point to the authoritative portable packages.
