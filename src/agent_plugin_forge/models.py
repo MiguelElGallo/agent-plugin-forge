@@ -624,5 +624,6 @@ class ImportPlan(StrictModel):
     license_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     license_destination: NonEmptyStr
     plan_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    review_payload: dict[str, Any]
     files: dict[str, str]
     file_modes: dict[str, bool]

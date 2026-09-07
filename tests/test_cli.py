@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 from pathlib import Path
@@ -10,12 +12,70 @@ import pytest
 from typer.testing import CliRunner
 
 from agent_plugin_forge.cli import app, run
-from agent_plugin_forge.common import ForgeError
+from agent_plugin_forge.common import ForgeError, json_bytes
 
+from .conftest import git
 from .test_importer import apply_reviewed
 
 runner = CliRunner()
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def test_cli_json_plan_can_be_reviewed_and_applied(
+    empty_forge: Path, skill_source: Path, monkeypatch
+) -> None:
+    license_file = skill_source.parent / "LICENSE"
+    license_file.write_text("Test license\n", encoding="utf-8")
+    monkeypatch.chdir(empty_forge)
+    args = [
+        "import",
+        "--source",
+        str(skill_source),
+        "--category",
+        "Developer Tools",
+        "--version",
+        "0.1.0",
+        "--description",
+        "A sample plugin",
+        "--author",
+        "Test Author",
+        "--license",
+        "MIT",
+        "--license-file",
+        str(license_file),
+        "--origin",
+        "https://example.com/source",
+        "--revision",
+        "0123456789abcdef0123456789abcdef01234567",
+        "--imported-at",
+        "2026-09-07",
+        "--json",
+    ]
+    before = {path: path.read_bytes() for path in empty_forge.rglob("*") if path.is_file()}
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    plan = json.loads(result.output)
+    payload = plan["review_payload"]
+    assert hashlib.sha256(json_bytes(payload)).hexdigest() == plan["plan_sha256"]
+    assert payload["description"] == "A sample plugin"
+    assert payload["license"] == "MIT"
+    assert payload["importedAt"] == "2026-09-07"
+    assert payload["targetState"] is None
+    assert (
+        plan["files"]["SKILL.md"]
+        == hashlib.sha256((skill_source / "SKILL.md").read_bytes()).hexdigest()
+    )
+    assert set(plan["file_modes"]) == set(plan["files"])
+    assert {path: path.read_bytes() for path in empty_forge.rglob("*") if path.is_file()} == before
+    git(empty_forge, "checkout", "-B", "skill/sample-skill/sample-skill")
+    rejected = runner.invoke(app, [*args, "--apply", "--expected-sha256", "0" * 64])
+    assert rejected.exit_code != 0
+    assert not (empty_forge / "plugins" / "sample-skill").exists()
+    applied = runner.invoke(app, [*args, "--apply", "--expected-sha256", plan["plan_sha256"]])
+    assert applied.exit_code == 0, applied.output
+    assert json.loads(applied.output) == plan
+    copied = empty_forge / "plugins" / "sample-skill" / "skills" / "sample-skill" / "SKILL.md"
+    assert copied.read_bytes() == (skill_source / "SKILL.md").read_bytes()
 
 
 def plain_output(output: str) -> str:

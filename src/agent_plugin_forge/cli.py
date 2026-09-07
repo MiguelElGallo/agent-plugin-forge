@@ -172,6 +172,10 @@ def import_command(
         bool,
         typer.Option("--apply", help="Apply the reviewed import plan."),
     ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print the complete review plan as JSON only."),
+    ] = False,
 ) -> None:
     """Plan an import by default, or apply an exact reviewed plan."""
 
@@ -194,6 +198,9 @@ def import_command(
     )
     repo = repository_root()
     plan = apply_import(repo, request) if apply else plan_import(repo, request)
+    if json_output:
+        typer.echo(plan.model_dump_json(indent=2))
+        return
     action = "Imported" if apply else "Plan"
     typer.echo(
         f"{action}: {plan.skill} -> plugins/{plan.plugin}/skills/{plan.skill} "
