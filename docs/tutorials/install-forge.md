@@ -55,6 +55,6 @@ Open a project containing an Agent Skill and ask:
 
 > I have a skill to publish. Explain the review checkpoint before making changes.
 
-The response should distinguish the no-external-write review phase from the approved publication phase. Do not approve publication yet.
+The response should explain that the first publication asks for a destination repository, confirms whether to remember it across projects, and then prepares a plan showing that repository. Later publications reuse the saved destination. It should also distinguish the no-external-write review phase from the approved publication phase. Do not approve publication yet.
 
 If discovery fails, use [Troubleshooting](../how-to/troubleshoot.md#the-plugin-or-skill-is-missing). Next, [publish a skill with your agent](../how-to/publish-skill.md).

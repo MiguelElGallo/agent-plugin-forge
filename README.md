@@ -8,7 +8,9 @@
 
 **Documentation:** [Read the Agent Plugin Forge documentation](https://miguelelgallo.github.io/agent-plugin-forge/).
 
-Install the Forge once, give your coding agent a skill, approve its review plan, and publish a portable [Agent Plugins 1.0](https://agent-plugins.org/) package for Visual Studio Code, GitHub Copilot, and Codex.
+**Version 1.0.0:** publication destinations are now explicit and can be remembered across projects. Existing users should [refresh and update the Forge](docs/reference/client-installation.md#upgrade-forge-to-100), then start a new chat.
+
+Install the Forge once, choose and remember your publication repository, then give your coding agent a skill and approve its review plan. Forge packages it as a portable [Agent Plugins 1.0](https://agent-plugins.org/) plugin for Visual Studio Code, GitHub Copilot, and Codex.
 
 You do **not** need to clone this repository to use the Forge.
 
@@ -48,7 +50,9 @@ Open the project that contains your skill and ask:
 
 > My skill is at `/absolute/path/to/my-skill`. Review it and prepare it for publication through Agent Plugin Forge. Stop after the review plan and ask me before publishing.
 
-The installed skill creates a disposable, current Forge checkout itself. It inspects the source without executing imported scripts, resolves missing metadata, creates a hash-bound no-write plan, and stops.
+On first use, the agent asks **where to publish**, shows the exact repository URL, and confirms whether to remember it as your default across projects. There is no built-in publication destination; installing Forge from this repository does not select it as your publication target. The destination must contain the complete Forge runtime and catalog on `main`; [prepare a team repository](docs/how-to/maintain-team-marketplace.md#prepare-the-central-repository) if needed.
+
+Later requests reuse your saved destination and show it in every plan. You can confirm a one-time override or replace the saved default. The installed skill creates a disposable, current checkout of the selected Forge, inspects the source without executing imported scripts, resolves missing metadata, creates a hash-bound no-write plan, and stops. Saving the destination does not approve publication.
 
 Publication begins only when you approve that exact plan. The agent then applies it, runs the complete validation suite, creates or reuses your GitHub fork or writable remote when necessary, pushes the branch, and opens a pull request. Merge remains a separate authorization.
 
@@ -56,18 +60,18 @@ Follow [Publish a skill with your agent](https://miguelelgallo.github.io/agent-p
 
 ## 3. Install the published plugin
 
-After its pull request is merged, refresh the configured marketplace and install the new plugin:
+After its pull request is merged, use the publication repository's marketplace name as `MARKETPLACE_NAME`. If that repository differs from the Forge installation source, [register the publication marketplace](docs/tutorials/install-published-plugin.md) first. Refresh it and install the new plugin:
 
 ```bash
-codex plugin marketplace upgrade agent-plugin-forge
-codex plugin add PLUGIN_NAME@agent-plugin-forge
+codex plugin marketplace upgrade MARKETPLACE_NAME
+codex plugin add PLUGIN_NAME@MARKETPLACE_NAME
 ```
 
 or:
 
 ```bash
-copilot plugin marketplace update agent-plugin-forge
-copilot plugin install PLUGIN_NAME@agent-plugin-forge
+copilot plugin marketplace update MARKETPLACE_NAME
+copilot plugin install PLUGIN_NAME@MARKETPLACE_NAME
 ```
 
 VS Code users run **Extensions: Check for Extension Updates**, then open **Chat: Open Customizations**, choose **Plugins**, and install `PLUGIN_NAME` from **Browse Marketplace**. See [Install a published plugin](https://miguelelgallo.github.io/agent-plugin-forge/tutorials/install-published-plugin/).

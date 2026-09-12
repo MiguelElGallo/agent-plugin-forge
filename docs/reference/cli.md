@@ -23,16 +23,50 @@ Users publishing through the installed plugin do not run these commands manually
 
 ## Bootstrap helper
 
-The installed `package-agent-skill` includes `scripts/bootstrap_forge.py`. Resolve the helper from the installed skill rather than the Forge repository root. It clones current `main` without modifying the user's project and prints the selected origin, host, checkout, branch, and exact revision as JSON.
+The installed `package-agent-skill` includes `scripts/bootstrap_forge.py`. Resolve the helper from the installed skill rather than the Forge repository root. It clones the selected repository's current `main` without modifying the user's project and prints the selected origin, host, checkout, branch, exact revision, and destination settings as JSON.
 
 ```bash
 uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstrap_forge.py \
   [--origin GIT_URL] \
+  [--config SETTINGS_PATH] \
   [--destination ABSOLUTE_PATH] \
   [--reuse]
 ```
 
-`AGENT_PLUGIN_FORGE_ORIGIN` supplies a default alternate origin. `--reuse` accepts only a regular, clean checkout on `main` whose configured origin exactly matches. Without `--destination`, the helper creates a new operating-system temporary location.
+The destination comes from `--origin`, then `AGENT_PLUGIN_FORGE_ORIGIN`, then the saved user default. There is no built-in repository URL. With no destination, bootstrap exits with status `1` before creating a checkout or running Git and tells the agent to ask the user. Empty or invalid overrides are errors, not permission to fall back to another destination.
+
+`--reuse` accepts only a regular, clean checkout on `main` whose configured origin exactly matches. Without `--destination`, the helper creates a new operating-system temporary location. `--destination` is a local checkout path; the helper's `--origin` is the publication repository. The separate `forge import --origin` option records the skill's source repository.
+
+### Remembered destination
+
+The agent asks for the repository on first use and confirms the exact URL and whether to remember it across projects. Settings operations never clone or publish:
+
+```bash
+# Inspect the active selection and saved default without writing.
+uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstrap_forge.py --show-origin
+
+# After the user confirms the repository and asks to remember it.
+uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstrap_forge.py \
+  --origin CONFIRMED_FORGE_URL --remember-origin
+
+# After the user explicitly confirms replacing a different saved default.
+uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstrap_forge.py \
+  --origin NEW_CONFIRMED_FORGE_URL --remember-origin --replace-saved-origin
+```
+
+`--show-origin` returns `origin`, `origin_source` (`argument`, `environment`, `saved`, or `unset`), `saved_origin`, and `settings_path`. An unset selection is reported as `null` with status `0`, allowing the agent to ask before bootstrapping. `--remember-origin` requires an explicit `--origin`; an environment override alone cannot be saved accidentally. A different saved default is protected unless `--replace-saved-origin` is also supplied. Settings actions cannot be combined with `--destination` or `--reuse`.
+
+One credential-free URL is stored per operating-system user, shared across projects and clients on that machine. Plugin updates preserve it. `--origin` and environment overrides never update the saved default by themselves. Every publication plan still shows its selected repository and requires approval.
+
+| Platform | Default settings file |
+| --- | --- |
+| macOS | `~/Library/Application Support/agent-plugin-forge/settings.json` |
+| Linux | `~/.config/agent-plugin-forge/settings.json` |
+| Windows | `%APPDATA%/agent-plugin-forge/settings.json` (or the user's `AppData/Roaming` directory) |
+
+An absolute `XDG_CONFIG_HOME` overrides the platform directory. `--config SETTINGS_PATH` selects a specific settings file, useful for managed environments and isolated tests. The JSON contains `{"version": 1, "origin": "CONFIRMED_FORGE_URL"}`. Corrupt, unsafe, or unreadable settings stop the helper; it does not choose another repository.
+
+Saving a default locks the settings while checking and writing the new value, so concurrent clients cannot silently replace each other's choice. If another client is saving, retry after it finishes. The adjacent `.settings.json.lock` file stays in place; the operating system releases its lock when the saving process closes or exits.
 
 ## `forge branch`
 

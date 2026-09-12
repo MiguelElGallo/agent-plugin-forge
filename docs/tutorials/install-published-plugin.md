@@ -1,10 +1,16 @@
 # Install a published plugin
 
-In this tutorial you will install a plugin after its Agent Plugin Forge pull request has merged. The marketplace source is already available from the Forge installation, so no repository clone or second marketplace setup is needed.
+In this tutorial you will install a plugin after its Agent Plugin Forge pull request has merged. Use the repository where the skill was published. It may differ from the repository where you installed the Forge tool.
 
-Replace `PLUGIN_NAME` with the name reported by the publication pull request. Replace `MARKETPLACE_NAME` only when your private or mirrored marketplace declares a different name.
+Replace `PLUGIN_NAME` and `MARKETPLACE_NAME` with the plugin and marketplace names reported for that publication repository. Saving a publication destination does not register it in your client's marketplace list.
 
 ## Codex
+
+If the publication repository is not registered yet, add its Git URL:
+
+```bash
+codex plugin marketplace add FORGE_GIT_URL
+```
 
 Refresh the marketplace snapshot, then install:
 
@@ -21,6 +27,12 @@ codex plugin list --json
 
 ## GitHub Copilot CLI
 
+If the publication repository is not registered yet, add it:
+
+```bash
+copilot plugin marketplace add FORGE_GIT_URL
+```
+
 Refresh the marketplace catalog, then install:
 
 ```bash
@@ -32,6 +44,8 @@ copilot plugin list
 The installed list should include `PLUGIN_NAME`.
 
 ## Visual Studio Code
+
+If the publication repository is not registered, run **Chat: Install Plugin from Source**, enter its Git URL, review the source, and select the published plugin. For a private source, follow [private marketplace installation](../how-to/private-marketplace.md#install-from-the-private-source).
 
 Run **Extensions: Check for Extension Updates** from the Command Palette to fetch current marketplace content immediately. VS Code also checks eligible plugin sources approximately every 24 hours when automatic extension updates are enabled.
 

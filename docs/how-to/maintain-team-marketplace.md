@@ -42,7 +42,7 @@ Install the Forge from the [private marketplace](private-marketplace.md), then i
 
 > Use the installed package-agent-skill workflow. My skill is at `/absolute/path/to/incident-summary`. Use Forge origin `https://github.company.example/platform/agent-skills.git`. Review it as plugin `incident-summary`, version `0.1.0`, category `Operations`. Inspect the source and license, prepare the complete review plan, and stop for approval.
 
-Installing from a private marketplace does not set the publication origin. Keep that URL in each request, or configure `AGENT_PLUGIN_FORGE_ORIGIN` in the environment that launches the agent. Verify the selected repository in the returned plan before approving it.
+Installing from a private marketplace does not set the publication origin. On first use, confirm the team's URL and ask the agent to remember it as your default across projects. Subsequent requests reuse the saved destination and display it in every plan. A one-time `--origin` or `AGENT_PLUGIN_FORGE_ORIGIN` override does not replace that default. Confirm any change of destination and verify the selected repository in the returned plan before approving it.
 
 The report should identify the source revision, destination, version, files and modes, license evidence, checkout revision, and exact plan hash. Save the JSON review artifact outside the checkout. After review, approve the specific actions, for example:
 

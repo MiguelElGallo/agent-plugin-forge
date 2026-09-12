@@ -27,7 +27,7 @@ Keep the project version, shipped Forge plugin, and marketplace version aligned.
 Before release, record exact versions and test both the installed user journey and direct contributor workflow:
 
 1. run **Chat: Install Plugin from Source** against the exact public repository in an isolated VS Code profile, accept the source trust prompt, select `agent-plugin-forge` when a multi-entry marketplace presents a picker, confirm that it shows **Manage**, and find `package-agent-skill` in **Chat: Configure Skills...**;
-2. run the packaged bootstrap helper against an isolated Git remote and verify temporary creation, alternate origin, persistent reuse, clean `main`, and exact revision;
+2. run the packaged bootstrap helper with isolated settings: verify that first use asks for a destination before creating a checkout, save a confirmed repository, reuse it from another project, and check overrides and explicit default replacement; then verify temporary creation, persistent checkout reuse, clean `main`, and exact revision against an isolated Git remote;
 3. install the same package in isolated Copilot CLI and Codex homes;
 4. open a disposable contributor clone in VS Code and run the manual tutorial commands;
 5. register a local portable fixture using [`chat.pluginLocations`](../tutorials/use-in-vscode.md), confirm its skill and MCP server, and call a credential-free tool.
@@ -46,6 +46,8 @@ codex plugin list
 
 Use isolated client homes for repeatable tests. Do not remove or replace a user's existing marketplace registrations during acceptance.
 
+For destination tests, use the helper's `--config SETTINGS_PATH` or a temporary `XDG_CONFIG_HOME`. Exercise the helper from the installed package and compare its files with the reviewed source. Settings checks must not modify the user's real saved destination. Distinguish deterministic helper execution, package installation, and a full agent publication invocation in the compatibility record.
+
 For VS Code update acceptance, run **Extensions: Check for Extension Updates** and confirm the new plugin version before relying on the approximately daily automatic check.
 
 Treat local-origin and private-host acceptance as separate checks. A disposable local Git source qualifies offline review, origin hashing, and refusal to publish without a GitHub endpoint.
@@ -54,4 +56,6 @@ Private-marketplace qualification requires a disposable private GitHub.com or Gi
 
 ## Publish and read back
 
-Merge only the reviewed head SHA after every required check succeeds. Then verify clean `main`, the live GitHub ruleset, generated marketplace bytes, a fresh marketplace install, and the deployed Zensical site. Documentation deploys only from `main`.
+Merge only the reviewed head SHA after every required check succeeds. Then verify clean `main`, the live GitHub branch protections or ruleset, generated marketplace bytes, a fresh marketplace install, and the deployed Zensical site. Documentation deploys only from `main`.
+
+Build the Python wheel and source distribution from the reviewed release tree with `uv build`, and smoke-test the wheel in an isolated environment. Tag the verified merged commit as `vVERSION` and publish a GitHub release containing both archives and their `SHA256SUMS`. Read back the release tag, asset hashes, marketplace version, and deployed documentation. Plugin consumers install from the Git marketplace; the Python archives provide the Forge CLI. This workflow does not publish to PyPI.

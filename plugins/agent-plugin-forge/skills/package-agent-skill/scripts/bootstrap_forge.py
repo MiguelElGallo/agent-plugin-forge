@@ -11,10 +11,11 @@ import stat
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
 
-DEFAULT_ORIGIN = "https://github.com/MiguelElGallo/agent-plugin-forge.git"
 SCP_ORIGIN_RE = re.compile(r"(?:(?P<user>[^@/:]+)@)?(?P<host>[^/:]+):(?P<path>.+)")
 
 
@@ -25,7 +26,7 @@ class BootstrapError(RuntimeError):
 def _validate_origin(origin: str) -> None:
     """Reject unsafe, credential-bearing, or unsupported forge origins."""
 
-    if not origin:
+    if not origin.strip():
         raise BootstrapError("Forge origin is empty")
     if any(ord(character) < 32 or ord(character) == 127 for character in origin):
         raise BootstrapError("Forge origin must not contain control characters")
@@ -153,6 +154,124 @@ def _origin_host(origin: str) -> str:
     return "local"
 
 
+def _settings_path() -> Path:
+    """Locate the user's shared Forge preferences outside installed plugin caches."""
+
+    if configured := os.environ.get("XDG_CONFIG_HOME"):
+        base = Path(configured).expanduser()
+        if not base.is_absolute():
+            raise BootstrapError("XDG_CONFIG_HOME must be an absolute path")
+    elif sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path.home() / ".config"
+    return base / "agent-plugin-forge" / "settings.json"
+
+
+def _saved_origin(settings: Path) -> str | None:
+    """Read a validated saved destination, refusing unreadable or invalid preferences."""
+
+    try:
+        mode = settings.lstat().st_mode
+        if _is_link_like(settings) or not stat.S_ISREG(mode):
+            raise BootstrapError(f"Forge settings must be a regular file: {settings}")
+        content = settings.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeError) as error:
+        raise BootstrapError(f"Cannot read Forge settings: {settings}") from error
+    try:
+        payload = json.loads(content)
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"version", "origin"}
+            or type(payload["version"]) is not int
+            or payload["version"] != 1
+            or not isinstance(payload["origin"], str)
+        ):
+            raise ValueError("Unsupported settings format")
+        origin = _normalize_origin(payload["origin"])
+        if origin != payload["origin"]:
+            raise ValueError("Saved local origins must be normalized absolute paths")
+    except (ValueError, BootstrapError) as error:
+        raise BootstrapError(
+            f"Invalid Forge settings; correct the saved destination: {settings}"
+        ) from error
+    return origin
+
+
+def _select_origin(explicit: str | None, saved: str | None) -> tuple[str | None, str]:
+    """Resolve an explicit argument, environment override, or confirmed saved destination."""
+
+    for source, value in (
+        ("argument", explicit),
+        ("environment", os.environ.get("AGENT_PLUGIN_FORGE_ORIGIN")),
+        ("saved", saved),
+    ):
+        if value is not None:
+            return _normalize_origin(value), source
+    return None, "unset"
+
+
+@contextmanager
+def _settings_lock(settings: Path) -> Iterator[None]:
+    """Serialize settings writers with a process lock released even if the client exits."""
+
+    settings.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock = settings.with_name(f".{settings.name}.lock")
+    if os.path.lexists(lock) and (_is_link_like(lock) or not lock.is_file()):
+        raise BootstrapError(f"Forge settings lock must be a regular file: {lock}")
+    descriptor = os.open(lock, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise BootstrapError(f"Forge settings lock must be a regular file: {lock}")
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+
+                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            raise BootstrapError(
+                f"Cannot lock Forge settings; another client may be saving. Retry: {settings}"
+            ) from error
+        yield
+    finally:
+        # Keep the file in place so every writer locks the same inode; closing releases the lock.
+        os.close(descriptor)
+
+
+def _remember_origin(settings: Path, origin: str, *, replace: bool) -> None:
+    """Atomically save a confirmed origin, requiring explicit replacement of another default."""
+
+    with _settings_lock(settings):
+        saved = _saved_origin(settings)
+        if saved is not None and saved != origin and not replace:
+            raise BootstrapError(
+                "A different Forge destination is already saved. Confirm the replacement with the "
+                "user, then add --replace-saved-origin."
+            )
+        temporary: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=settings.parent, prefix=".settings-", delete=False
+            ) as stream:
+                temporary = Path(stream.name)
+                json.dump({"version": 1, "origin": origin}, stream, indent=2)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, settings)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+
 def bootstrap(origin: str, destination: Path, *, reuse: bool) -> dict[str, str]:
     """Create or refresh a verified, clean checkout of current origin/main."""
 
@@ -233,7 +352,22 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--origin",
-        default=os.environ.get("AGENT_PLUGIN_FORGE_ORIGIN", DEFAULT_ORIGIN),
+        help="Explicit Forge repository; otherwise use the environment or saved destination.",
+    )
+    parser.add_argument("--config", type=Path, help="Override the user settings file path.")
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument(
+        "--show-origin", action="store_true", help="Print destination settings without cloning."
+    )
+    actions.add_argument(
+        "--remember-origin",
+        action="store_true",
+        help="Save the user-confirmed --origin as the shared default and exit without cloning.",
+    )
+    parser.add_argument(
+        "--replace-saved-origin",
+        action="store_true",
+        help="Allow --remember-origin to replace a different default after user confirmation.",
     )
     parser.add_argument("--destination")
     parser.add_argument(
@@ -249,10 +383,37 @@ def main() -> int:
 
     args = _parser().parse_args()
     try:
-        origin = _normalize_origin(args.origin)
-        destination, reuse = _destination(args.destination, reuse=args.reuse)
-        payload = bootstrap(origin, destination, reuse=reuse)
-    except BootstrapError as error:
+        if (args.show_origin or args.remember_origin) and (args.destination or args.reuse):
+            raise BootstrapError(
+                "Settings actions cannot be combined with --destination or --reuse"
+            )
+        if args.replace_saved_origin and not args.remember_origin:
+            raise BootstrapError("--replace-saved-origin requires --remember-origin")
+        if args.remember_origin and args.origin is None:
+            raise BootstrapError("--remember-origin requires an explicit, user-confirmed --origin")
+        settings = args.config.expanduser().absolute() if args.config else _settings_path()
+        saved = _saved_origin(settings)
+        origin, source = _select_origin(args.origin, saved)
+        if args.remember_origin:
+            assert origin is not None
+            _remember_origin(settings, origin, replace=args.replace_saved_origin)
+            saved = _saved_origin(settings)
+        payload: dict[str, str | None] = {
+            "origin": origin,
+            "origin_source": source,
+            "saved_origin": saved,
+            "settings_path": str(settings),
+        }
+        if not (args.show_origin or args.remember_origin):
+            if origin is None:
+                raise BootstrapError(
+                    "No Forge publication destination is configured. Ask the user where to "
+                    "publish, confirm the repository, then pass --origin or save it with "
+                    "--origin URL --remember-origin. No checkout was created."
+                )
+            destination, reuse = _destination(args.destination, reuse=args.reuse)
+            payload.update(bootstrap(origin, destination, reuse=reuse))
+    except (BootstrapError, OSError, ValueError) as error:
         print(f"bootstrap failed: {error}", file=sys.stderr)
         return 1
     print(json.dumps(payload, sort_keys=True))

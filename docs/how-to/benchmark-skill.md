@@ -13,13 +13,13 @@ uv run python benchmarks/skill_workflow.py \
   --output /absolute/path/to/forge-benchmark.json
 ```
 
-The harness creates disposable local Git repositories and inert, authored skills. Each size includes one `SKILL.md`; the remaining files are small text assets. It runs the shipped bootstrap helper, creates a skill branch, prepares and repeats a read-only import plan, refuses changed source, applies the reviewed plan, generates and validates both client indexes, refuses a duplicate destination, and checks the committed branch scope. It never executes imported content or contacts a hosted Git remote. Unexpected command results stop the run.
+The harness creates disposable local Git repositories and inert, authored skills. Each size includes one `SKILL.md`; the remaining files are small text assets. It runs the shipped bootstrap helper with an explicit local origin and isolated settings, creates a skill branch, prepares and repeats a read-only import plan, refuses changed source, applies the reviewed plan, generates and validates both client indexes, refuses a duplicate destination, and checks the committed branch scope. It never executes imported content or contacts a hosted Git remote. Unexpected command results stop the run.
 
 The JSON contains every sample, per-stage medians, Forge and Python versions, and the operating system. Timings include process startup with warm dependency and filesystem caches. They exclude fixture preparation, network, model reasoning, human review, client installation, and the full test suite. There are no machine-dependent pass/fail timing thresholds.
 
 ### Recorded local result
 
-The current release candidate is `0.3.0`. These measurements were recorded before the version-only bump, so the report and raw data keep the version actually measured.
+The current release is `1.0.0`. The measurements below are historical `0.0.2` results; the report and raw data retain the version actually measured and do not claim a new performance result for 1.0.0.
 
 The `0.0.2` candidate was measured on macOS arm64 with Python 3.12.13, using five fresh fixtures per size. The [raw results](../assets/benchmarks/macos-python312-0.0.2.json) retain all samples. Values below are median milliseconds, rounded to the nearest millisecond.
 

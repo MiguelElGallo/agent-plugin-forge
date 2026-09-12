@@ -7,6 +7,7 @@ import os
 import runpy
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,25 @@ SCRIPT = (
     / "scripts"
     / "bootstrap_forge.py"
 )
+
+
+@pytest.fixture(autouse=True)
+def isolated_preferences(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("AGENT_PLUGIN_FORGE_ORIGIN", raising=False)
+
+
+def _helper(*arguments: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *arguments],
+        cwd=cwd,
+        # Windows putenv removes native variables set to an empty string.
+        # Pass the Python mapping explicitly so the empty-override case reaches the child.
+        env=dict(os.environ),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _remote(tmp_path: Path) -> tuple[Path, str, Path]:
@@ -86,6 +106,9 @@ def test_bootstrap_creates_clean_current_main_checkout(tmp_path: Path) -> None:
         "host": "local",
         "origin": str(remote),
         "revision": revision,
+        "origin_source": "argument",
+        "saved_origin": None,
+        "settings_path": str(tmp_path / "config" / "agent-plugin-forge" / "settings.json"),
     }
     assert git(destination, "branch", "--show-current") == "main"
     assert git(destination, "rev-parse", "HEAD") == revision
@@ -412,3 +435,292 @@ def test_bootstrap_reuse_does_not_execute_repository_hooks(tmp_path: Path) -> No
     )
 
     assert not (destination / ".git" / "post-merge-ran").exists()
+
+
+def test_first_use_requires_a_destination_before_creating_anything(tmp_path: Path) -> None:
+    result = _helper("--destination", str(tmp_path / "checkout"))
+
+    assert result.returncode == 1
+    assert "Ask the user where to publish" in result.stderr
+    assert not list(tmp_path.iterdir())
+
+
+def test_show_unset_destination_is_read_only(tmp_path: Path) -> None:
+    result = _helper("--show-origin")
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["origin"] is None
+    assert payload["origin_source"] == "unset"
+    assert payload["saved_origin"] is None
+    assert not list(tmp_path.iterdir())
+
+
+def test_saved_destination_is_reused_by_a_new_process_in_another_project(tmp_path: Path) -> None:
+    remote, revision, _ = _remote(tmp_path)
+    first_project = tmp_path / "project-one"
+    second_project = tmp_path / "project-two"
+    first_project.mkdir()
+    second_project.mkdir()
+
+    remembered = _helper("--origin", "../forge.git", "--remember-origin", cwd=first_project)
+    assert remembered.returncode == 0, remembered.stderr
+    settings = Path(json.loads(remembered.stdout)["settings_path"])
+    assert json.loads(settings.read_text()) == {"version": 1, "origin": str(remote.resolve())}
+    assert not list(first_project.iterdir())
+
+    destination = tmp_path / "review"
+    reused = _helper("--destination", str(destination), cwd=second_project)
+    assert reused.returncode == 0, reused.stderr
+    payload = json.loads(reused.stdout)
+    assert payload["origin"] == str(remote.resolve())
+    assert payload["saved_origin"] == str(remote.resolve())
+    assert payload["origin_source"] == "saved"
+    assert payload["revision"] == revision
+    assert git(destination, "remote", "get-url", "origin") == str(remote.resolve())
+
+
+def test_explicit_and_environment_overrides_do_not_replace_saved_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved = "https://github.company.example/team/default.git"
+    environment = "https://github.company.example/team/environment.git"
+    explicit = "https://github.company.example/team/one-off.git"
+    remembered = _helper("--origin", saved, "--remember-origin")
+    assert remembered.returncode == 0, remembered.stderr
+    settings = Path(json.loads(remembered.stdout)["settings_path"])
+    before = settings.read_bytes()
+
+    monkeypatch.setenv("AGENT_PLUGIN_FORGE_ORIGIN", environment)
+    from_environment = json.loads(_helper("--show-origin").stdout)
+    assert from_environment["origin"] == environment
+    assert from_environment["origin_source"] == "environment"
+    from_argument = json.loads(_helper("--show-origin", "--origin", explicit).stdout)
+    assert from_argument["origin"] == explicit
+    assert from_argument["origin_source"] == "argument"
+    assert from_argument["saved_origin"] == saved
+    assert settings.read_bytes() == before
+    assert list(tmp_path.iterdir()) == [tmp_path / "config"]
+
+
+def test_replacing_a_saved_destination_requires_an_explicit_replacement() -> None:
+    first = "https://github.company.example/team/first.git"
+    second = "https://github.company.example/team/second.git"
+    remembered = _helper("--origin", first, "--remember-origin")
+    assert remembered.returncode == 0, remembered.stderr
+    settings = Path(json.loads(remembered.stdout)["settings_path"])
+    before = settings.read_bytes()
+
+    refused = _helper("--origin", second, "--remember-origin")
+    assert refused.returncode == 1
+    assert "Confirm the replacement with the user" in refused.stderr
+    assert settings.read_bytes() == before
+
+    replaced = _helper("--origin", second, "--remember-origin", "--replace-saved-origin")
+    assert replaced.returncode == 0, replaced.stderr
+    assert json.loads(_helper("--show-origin").stdout)["origin"] == second
+
+
+def test_remember_requires_an_explicit_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_PLUGIN_FORGE_ORIGIN", "https://github.company.example/team/forge.git")
+    result = _helper("--remember-origin")
+    assert result.returncode == 1
+    assert "requires an explicit, user-confirmed --origin" in result.stderr
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_empty_override_cannot_fall_back_to_saved_origin(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert (
+        _helper(
+            "--origin", "https://github.company.example/team/forge.git", "--remember-origin"
+        ).returncode
+        == 0
+    )
+    monkeypatch.setenv("AGENT_PLUGIN_FORGE_ORIGIN", value)
+    result = _helper("--show-origin")
+    assert result.returncode == 1
+    assert "Forge origin is empty" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "not JSON",
+        "[]",
+        "{}",
+        '{"version": true, "origin": "https://github.company.example/team/forge.git"}',
+        '{"version": 2, "origin": "https://github.company.example/team/forge.git"}',
+        '{"version": 1, "origin": "https://secret@github.company.example/team/forge.git"}',
+        '{"version": 1, "origin": "../relative.git"}',
+    ],
+)
+def test_invalid_settings_stop_without_cloning_or_overwriting(tmp_path: Path, content: str) -> None:
+    settings = tmp_path / "invalid.json"
+    settings.write_text(content, encoding="utf-8")
+    result = _helper("--config", str(settings), "--destination", str(tmp_path / "checkout"))
+
+    assert result.returncode == 1
+    assert "Invalid Forge settings" in result.stderr
+    assert "secret" not in result.stderr
+    assert settings.read_text(encoding="utf-8") == content
+    assert not (tmp_path / "checkout").exists()
+
+
+def test_unsafe_origin_cannot_be_remembered(tmp_path: Path) -> None:
+    result = _helper(
+        "--origin", "https://secret@github.company.example/team/forge.git", "--remember-origin"
+    )
+    assert result.returncode == 1
+    assert "must not embed credentials" in result.stderr
+    assert not list(tmp_path.iterdir())
+
+
+def test_settings_directory_is_rejected_before_bootstrap(tmp_path: Path) -> None:
+    settings = tmp_path / "not-a-file"
+    settings.mkdir()
+    result = _helper("--config", str(settings), "--destination", str(tmp_path / "checkout"))
+    assert result.returncode == 1
+    assert "settings must be a regular file" in result.stderr
+    assert not (tmp_path / "checkout").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX symbolic link support")
+def test_settings_symlink_is_rejected_without_replacing_its_target(tmp_path: Path) -> None:
+    target = tmp_path / "target.json"
+    content = '{"version": 1, "origin": "https://github.company.example/team/forge.git"}'
+    target.write_text(content, encoding="utf-8")
+    settings = tmp_path / "linked.json"
+    settings.symlink_to(target)
+    result = _helper("--config", str(settings), "--show-origin")
+    assert result.returncode == 1
+    assert "settings must be a regular file" in result.stderr
+    assert target.read_text(encoding="utf-8") == content
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--show-origin", "--destination", "unused"],
+        ["--show-origin", "--reuse"],
+        ["--remember-origin", "--destination", "unused"],
+        ["--remember-origin", "--reuse"],
+        ["--replace-saved-origin"],
+    ],
+)
+def test_settings_actions_cannot_accidentally_clone(tmp_path: Path, arguments: list[str]) -> None:
+    result = _helper("--origin", "https://github.company.example/team/forge.git", *arguments)
+    assert result.returncode == 1
+    assert not list(tmp_path.iterdir())
+
+
+def test_failed_settings_replacement_preserves_previous_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    namespace = runpy.run_path(str(SCRIPT))
+    settings = tmp_path / "settings.json"
+    namespace["_remember_origin"](
+        settings, "https://github.company.example/team/first.git", replace=False
+    )
+    before = settings.read_bytes()
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise OSError("simulated write failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "replace", fail_replace)
+        with pytest.raises(OSError, match="simulated write failure"):
+            namespace["_remember_origin"](
+                settings, "https://github.company.example/team/second.git", replace=True
+            )
+    assert settings.read_bytes() == before
+    assert set(tmp_path.iterdir()) == {settings, tmp_path / ".settings.json.lock"}
+    retried = _helper(
+        "--config",
+        str(settings),
+        "--origin",
+        "https://github.company.example/team/first.git",
+        "--remember-origin",
+    )
+    assert retried.returncode == 0, retried.stderr
+
+
+@pytest.mark.parametrize("already_saved", [False, True])
+def test_concurrent_save_cannot_overwrite_another_clients_choice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, already_saved: bool
+) -> None:
+    namespace = runpy.run_path(str(SCRIPT))
+    settings = tmp_path / "settings.json"
+    first = "https://github.company.example/team/first.git"
+    second = "https://github.company.example/team/second.git"
+    if already_saved:
+        namespace["_remember_origin"](settings, first, replace=False)
+    create_temporary = tempfile.NamedTemporaryFile
+
+    def competing_writer(*args, **kwargs):
+        # The first writer has read the default but has not yet created its new file.
+        competing = _helper("--config", str(settings), "--origin", second, "--remember-origin")
+        assert competing.returncode == 1, competing.stdout
+        assert "Cannot lock Forge settings" in competing.stderr
+        return create_temporary(*args, **kwargs)
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", competing_writer)
+    namespace["_remember_origin"](settings, first, replace=False)
+    assert json.loads(settings.read_text())["origin"] == first
+    retried = _helper("--config", str(settings), "--origin", second, "--remember-origin")
+    assert retried.returncode == 1
+    assert "Confirm the replacement" in retried.stderr
+    assert json.loads(settings.read_text())["origin"] == first
+
+
+def test_settings_lock_is_released_when_a_client_exits(tmp_path: Path) -> None:
+    settings = tmp_path / "settings.json"
+    crashed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os, runpy, sys; from pathlib import Path; "
+            "lock = runpy.run_path(sys.argv[1])['_settings_lock'](Path(sys.argv[2])); "
+            "lock.__enter__(); os._exit(7)",
+            str(SCRIPT),
+            str(settings),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert crashed.returncode == 7, crashed.stderr
+    saved = _helper(
+        "--config",
+        str(settings),
+        "--origin",
+        "https://github.company.example/team/forge.git",
+        "--remember-origin",
+    )
+    assert saved.returncode == 0, saved.stderr
+
+
+@pytest.mark.parametrize(
+    "platform, relative", [("darwin", "Library/Application Support"), ("linux", ".config")]
+)
+def test_preferences_use_the_platform_user_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, platform: str, relative: str
+) -> None:
+    namespace = runpy.run_path(str(SCRIPT))
+    monkeypatch.delenv("XDG_CONFIG_HOME")
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert namespace["_settings_path"]() == (
+        tmp_path / relative / "agent-plugin-forge" / "settings.json"
+    )
+
+
+def test_preferences_use_windows_appdata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    namespace = runpy.run_path(str(SCRIPT))
+    monkeypatch.delenv("XDG_CONFIG_HOME")
+    monkeypatch.setenv("APPDATA", str(tmp_path / "roaming"))
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert namespace["_settings_path"]() == (
+        tmp_path / "roaming" / "agent-plugin-forge" / "settings.json"
+    )

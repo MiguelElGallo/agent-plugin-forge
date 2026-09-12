@@ -23,7 +23,7 @@ Open the project that already contains your skill and tell the agent where it is
 
 > My skill is at `/absolute/path/to/my-skill`. Review it and prepare it for publication through Agent Plugin Forge. Stop after the review plan and ask me before publishing.
 
-The agent creates its own disposable Forge checkout. The workflow has a hard checkpoint:
+On first use, the agent asks which repository should receive the skill and confirms whether to remember it as your default across projects. Later runs reuse that saved destination and show it in the plan. There is no built-in publication repository. The agent creates its own disposable checkout of the selected Forge, then follows this review checkpoint:
 
 ```text
 your skill
@@ -47,7 +47,7 @@ After the pull request is merged, users refresh the configured marketplace and i
 
 ## Private and self-hosted marketplaces
 
-Private GitHub repositories and GitHub Enterprise Server use the same reviewed publication workflow and can keep a persistent checkout in another local directory. Mirrors and other Git hosts support installation and review, but automated pull-request publication requires GitHub.com or GitHub Enterprise Server. Configure the selected Git marketplace source once, then give the agent that Forge origin when publishing.
+Private GitHub repositories and GitHub Enterprise Server use the same reviewed publication workflow and can keep a persistent checkout in another local directory. Mirrors and other Git hosts support installation and review, but automated pull-request publication requires GitHub.com or GitHub Enterprise Server. Configure the Git marketplace source for installation, then confirm and remember the publication destination on first use.
 
 [Use a private Forge marketplace →](how-to/private-marketplace.md)
 
