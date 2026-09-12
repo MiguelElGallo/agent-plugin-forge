@@ -18,6 +18,12 @@ For the public Forge, use `agent-plugin-forge` as the marketplace name. If the p
 
 A catalog entry proves availability; an installed entry proves installation; a skill listing proves discovery. To verify behavior, invoke the skill or call an MCP tool. See the [dated compatibility evidence](../reference/compatibility.md) before assuming a client has passed runtime acceptance.
 
+## Forge asks where to publish
+
+This is expected on first use. Installing Forge does not set the publication destination, and the helper has no public fallback. Give the agent the intended Forge repository URL and confirm whether to remember it across projects. Future plans show the saved destination automatically.
+
+To inspect the selection, ask the agent to run the bundled helper with `--show-origin`. Its JSON identifies the active origin, the saved default, their source, and the settings file. An environment override may select a different repository without changing the saved default. Confirm replacements explicitly; invalid or unreadable settings must be corrected before continuing. See [destination settings](../reference/cli.md#remembered-destination).
+
 ## A branch helper refuses the checkout
 
 For `Refusing to create a branch from a dirty worktree`, inspect `git status --short` and preserve or finish your existing work before returning to a clean `main`.

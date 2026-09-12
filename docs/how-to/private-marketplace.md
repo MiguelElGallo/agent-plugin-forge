@@ -52,7 +52,7 @@ To register the marketplace without installing immediately, add it to VS Code us
 
 All three clients document full HTTPS Git marketplace URLs. HTTPS Git authentication may use a configured credential helper; SSH uses the SSH agent and configuration. Confirm that the selected client can authenticate to the intended host under your organization's policy. Never embed a personal access token in the URL. Check the [recorded compatibility evidence](../reference/compatibility.md) for the exact private GitHub and GitHub Enterprise Server qualification scope.
 
-Installing from a private marketplace does not automatically change the publication helper's default origin. Include the private Forge URL in every review or reuse prompt. As an alternative, set `AGENT_PLUGIN_FORGE_ORIGIN` in the environment that launches your agent client.
+Installing from a private marketplace does not select a publication repository. On first publication, the agent asks where to publish and confirms whether to remember that URL as your default across projects. Later requests reuse the saved default and show it in the plan. You can supply a one-time origin or an `AGENT_PLUGIN_FORGE_ORIGIN` environment override without changing the saved choice. There is no public fallback. See [destination settings](../reference/cli.md#remembered-destination).
 
 ## Authenticate GitHub CLI
 
@@ -66,9 +66,9 @@ If forks are disabled, arrange a writable branch or remote with the repository a
 
 ## Tell the agent which Forge to use
 
-Include the origin in the review prompt:
+You can choose and remember the destination in the first review prompt:
 
-> My skill is at `/absolute/path/to/my-skill`. Use Forge origin `https://github.company.example/platform/agent-plugin-forge.git`. Review it for publication and stop after the review plan.
+> My skill is at `/absolute/path/to/my-skill`. Use Forge origin `https://github.company.example/platform/agent-plugin-forge.git` and remember it as my default across projects. Review the skill for publication and stop after the review plan.
 
 The installed helper clones and reports the selected origin. The publication skill then uses that returned origin for validation and, after approval, push and pull-request targeting; the helper itself does not publish. Local/file Git sources are useful for offline review and acceptance tests, but they do not have a GitHub pull-request endpoint. A local-origin plan is bound to its `file://` repository URL and is review-only. To publish, bootstrap the final GitHub/GHES origin and generate, review, and approve a new plan; never reuse the local-origin hash.
 

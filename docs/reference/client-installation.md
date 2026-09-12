@@ -44,6 +44,14 @@ Refresh and update an existing installation with the client-specific operation:
 | GitHub Copilot CLI | `copilot plugin marketplace update MARKETPLACE_NAME`, then `copilot plugin update PLUGIN_NAME@MARKETPLACE_NAME` |
 | Visual Studio Code | Run **Extensions: Check for Extension Updates**, then choose **Update** when the installed plugin offers it |
 
+## Upgrade Forge to 1.0.0
+
+Refresh the marketplace and update `agent-plugin-forge` with the commands above, then verify that its installed version is `1.0.0`. Start a new chat so the agent loads the updated skill instructions.
+
+Version 1.0.0 removes the automatic public publication target. The first publication asks for your destination and confirms whether to remember it across projects. An existing `AGENT_PLUGIN_FORGE_ORIGIN` remains an explicit override; the agent shows it and confirms whether to save it. A bare bootstrap command with no configured destination now stops before cloning. Automated callers must supply `--origin`, set the environment override, or save a confirmed default. See [destination settings](cli.md#remembered-destination).
+
+Installing or updating the Forge does not select a publication repository. Register the repository where you publish separately if you want to install its resulting plugins.
+
 ## Availability boundary
 
 A plugin becomes available through a marketplace only after its pull request merges and the client refreshes its marketplace snapshot. A branch or open pull request is not a marketplace release.

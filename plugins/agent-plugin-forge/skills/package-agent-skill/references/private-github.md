@@ -13,9 +13,9 @@ uv run --no-project python /absolute/path/to/package-agent-skill/scripts/bootstr
   --origin ssh://git@github.company.example/platform/agent-plugin-forge.git
 ```
 
-The user may set `AGENT_PLUGIN_FORGE_ORIGIN` instead. For a persistent checkout outside the temporary directory, add `--destination ABSOLUTE_PATH`; use `--reuse` in later sessions only when that checkout should be updated.
+Use the destination selection and confirmation steps in [publish.md](publish.md). The helper remembers a confirmed origin across projects. The user may set `AGENT_PLUGIN_FORGE_ORIGIN` as an override, or pass a one-time `--origin`; neither changes the saved default. For a persistent checkout outside the temporary directory, add `--destination ABSOLUTE_PATH`; use `--reuse` in later sessions only when that checkout should be updated.
 
-Installing the skill from a private marketplace does not set `AGENT_PLUGIN_FORGE_ORIGIN` or pass that marketplace URL to the helper. Require the selected origin in every review or reuse request unless the environment variable is already configured. If private or alternate publication is expected and the origin is missing, stop and ask; never silently use the public default.
+Installing the skill from a private marketplace does not select a publication repository. On first use, ask for and confirm the destination, then save it when the user agrees. On later requests, reuse that saved default and identify it in the plan. If private or alternate publication is expected and the saved destination does not satisfy the request, ask for the intended origin. There is no public fallback. Confirm changes to the saved default explicitly.
 
 ## Authenticate the host
 

@@ -2,11 +2,23 @@
 
 This page records dated client checks. These are qualification observations, not minimum supported versions. Structural conformance is tracked separately in [Standards and Forge policy](standards.md).
 
-## Current release candidate: 0.3.0
+## Current release: 1.0.0
 
-The project, shipped Forge plugin, marketplace, and lockfile now use `0.3.0`. The version change was revalidated with the full local gate on Python 3.11 and 3.12. The recorded benchmarks and client experiments below ran before this version-only change and retain their actual `0.0.2` labels; they are not fresh public `0.3.0` installation evidence.
+The project, shipped Forge plugin, marketplace, and lockfile use `1.0.0`. This release removes the built-in publication repository and adds a confirmed destination saved across projects. The [publication guide](../how-to/publish-skill.md) and [destination settings reference](cli.md#remembered-destination) describe first use, reuse, overrides, and replacement of the saved default.
 
-Earlier development snapshots also used `0.3.0` and `0.3.1`, as recorded below. For a client holding one of those snapshots, confirm the installed repository revision and content after an explicit refresh and reinstall; a matching version string alone does not identify this candidate.
+The destination regression suite covers missing configuration before any checkout, read-only inspection, persistence across processes and projects, override precedence, protected replacement, invalid settings, and failed-write recovery. The real CLI tutorial also runs from a remembered destination through plan, approved apply, generation, and validation, checking the repository shown in the plan and manifest.
+
+On macOS, the 1.0.0 suite passed 285 tests on both Python 3.11.16 and 3.12.13, with two platform-specific skips and 92% coverage. Ruff, ty, Forge validation, generation drift checks, and the strict documentation build passed. The built wheel installed into a fresh environment and passed `forge --version`, branch-name validation, and `forge check`. A one-file benchmark smoke run completed the documented workflow; it is not a new performance benchmark.
+
+Copilot CLI `1.0.84-1` registered a local marketplace in an isolated configuration and enabled the 1.0.0 Forge plugin with one skill. That client loads local marketplace packages live from the source directory, so this is local installation evidence, not a remote download or an agent publication invocation.
+
+The client commands were checked on 2026-09-12 against local Codex CLI `0.153.4`, GitHub Copilot CLI `1.0.84-1`, and the upstream [Codex](https://developers.openai.com/codex/cli/reference/#codex-plugin), [Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference), and [VS Code](https://code.visualstudio.com/docs/agent-customization/agent-plugins) references. Historical client experiments below retain their actual versions and scope; they are not fresh `1.0.0` installation or runtime evidence. GitHub Enterprise Server authentication still requires separate qualification.
+
+## Previous release: 0.3.0
+
+The `0.3.0` release passed 257 tests on Python 3.11 and 3.12. A fresh public Copilot CLI `1.0.84-1` installation matched all nine package files from merged revision `2a97c34889aa9fa035b6e1397e799df491cb7562`, and the installed skill completed its check-only workflow without changing files or branches. That evidence is recorded in the [0.3.0 release](https://github.com/MiguelElGallo/agent-plugin-forge/releases/tag/v0.3.0).
+
+Earlier development snapshots also used `0.3.0` and `0.3.1`, as recorded below. After an explicit refresh and update, verify the installed `1.0.0` version and package content.
 
 ## Evidence recorded on 2026-09-11–12
 

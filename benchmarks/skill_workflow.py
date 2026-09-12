@@ -99,6 +99,8 @@ def sample(root: Path, file_count: int, environment: dict[str, str]) -> dict[str
     bootstrap = [
         sys.executable,
         str(BOOTSTRAP),
+        "--config",
+        str(root / "forge-settings.json"),
         "--origin",
         str(remote),
         "--destination",

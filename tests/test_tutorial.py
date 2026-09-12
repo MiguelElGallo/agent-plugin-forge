@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from .conftest import git
 
 BOOTSTRAP = (
@@ -57,25 +59,37 @@ def test_real_cli_translates_forge_errors(empty_forge: Path) -> None:
     assert result.stderr == "forge: Skill branches must use skill/<plugin>/<skill>\n"
 
 
+@pytest.mark.parametrize("remember_destination", [False, True])
 def test_first_skill_tutorial_runs_through_the_real_cli(
     empty_forge: Path,
     skill_source: Path,
     tmp_path: Path,
+    remember_destination: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("AGENT_PLUGIN_FORGE_ORIGIN", raising=False)
     remote = initialize_remote(empty_forge, tmp_path)
     review_checkout = tmp_path / "review-checkout"
-    subprocess.run(
-        [
-            sys.executable,
-            str(BOOTSTRAP),
-            "--origin",
-            str(remote),
-            "--destination",
-            str(review_checkout),
-        ],
+    helper = [sys.executable, str(BOOTSTRAP), "--config", str(tmp_path / "preferences.json")]
+    origin_args = ["--origin", str(remote)]
+    if remember_destination:
+        subprocess.run(
+            [*helper, *origin_args, "--remember-origin"],
+            cwd=skill_source,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        origin_args = []
+    bootstrapped = subprocess.run(
+        [*helper, *origin_args, "--destination", str(review_checkout)],
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
+    )
+    assert json.loads(bootstrapped.stdout)["origin_source"] == (
+        "saved" if remember_destination else "argument"
     )
     license_file = skill_source.parent / "LICENSE"
     license_file.write_text("Test license\n", encoding="utf-8")
@@ -118,6 +132,7 @@ def test_first_skill_tutorial_runs_through_the_real_cli(
     )
     assert "skill/sample-skill/sample-skill" in branch.stdout
     plan = forge(review_checkout, *common_args)
+    assert f"repository {remote.as_uri()}" in plan.stdout
     match = re.search(r"review plan sha256 ([0-9a-f]{64})", plan.stdout)
     assert match is not None
     forge(

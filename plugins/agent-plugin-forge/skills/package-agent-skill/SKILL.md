@@ -13,7 +13,13 @@ Match the requested scope before starting intake:
 - For an existing skill update, read [references/maintain.md](references/maintain.md). `forge import` adds a new skill destination; it cannot overwrite an installed skill tree.
 - For several new skills, plan each separately. Default to separate plugins; add to one bundle only when requested. Each applied plan changes the catalog, so compute the next plan against the resulting checkout.
 
-For Agent Skill publication when the current workspace is not Agent Plugin Forge, read [references/publish.md](references/publish.md) and bootstrap a disposable, current checkout. The user does not need to clone the repository manually. For a mirror, private repository, persistent checkout, or GitHub Enterprise Server, also read [references/private-github.md](references/private-github.md).
+## Publication destination
+
+For new Agent Skill publication, read [references/publish.md](references/publish.md) and resolve the destination before creating a checkout, branch, or import plan. On first use, ask which Forge repository should receive the skill, show its exact URL, and confirm that the user wants to remember it as the default across projects. Save that confirmed choice with the bundled helper. Never infer the publication destination from the Forge installation source, the skill's source repository, or an unrelated current checkout. There is no built-in public destination.
+
+On later requests, read the saved default from the helper, reuse it, and show the selected repository in every review plan. Do not ask the same destination question again when the saved choice satisfies the request. Confirm a different destination and whether it is a one-time override or a replacement default; an override alone must not change the saved choice. Use the helper's persistent user settings, not conversation memory or edits to the installed skill. Remembering a destination does not approve an import, push, pull request, or merge.
+
+When the current workspace is not the selected Forge checkout, bootstrap a disposable, current checkout. The user does not need to clone the repository manually. For a mirror, private repository, persistent checkout, or GitHub Enterprise Server, also read [references/private-github.md](references/private-github.md).
 
 ## Intake
 
