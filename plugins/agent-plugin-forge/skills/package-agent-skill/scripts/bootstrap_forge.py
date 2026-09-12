@@ -11,6 +11,8 @@ import stat
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
 
@@ -213,30 +215,61 @@ def _select_origin(explicit: str | None, saved: str | None) -> tuple[str | None,
     return None, "unset"
 
 
+@contextmanager
+def _settings_lock(settings: Path) -> Iterator[None]:
+    """Serialize settings writers with a process lock released even if the client exits."""
+
+    settings.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock = settings.with_name(f".{settings.name}.lock")
+    if os.path.lexists(lock) and (_is_link_like(lock) or not lock.is_file()):
+        raise BootstrapError(f"Forge settings lock must be a regular file: {lock}")
+    descriptor = os.open(lock, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise BootstrapError(f"Forge settings lock must be a regular file: {lock}")
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+
+                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            raise BootstrapError(
+                f"Cannot lock Forge settings; another client may be saving. Retry: {settings}"
+            ) from error
+        yield
+    finally:
+        # Keep the file in place so every writer locks the same inode; closing releases the lock.
+        os.close(descriptor)
+
+
 def _remember_origin(settings: Path, origin: str, *, replace: bool) -> None:
     """Atomically save a confirmed origin, requiring explicit replacement of another default."""
 
-    saved = _saved_origin(settings)
-    if saved is not None and saved != origin and not replace:
-        raise BootstrapError(
-            "A different Forge destination is already saved. Confirm the replacement with the "
-            "user, then add --replace-saved-origin."
-        )
-    settings.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    temporary: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=settings.parent, prefix=".settings-", delete=False
-        ) as stream:
-            temporary = Path(stream.name)
-            json.dump({"version": 1, "origin": origin}, stream, indent=2)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, settings)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+    with _settings_lock(settings):
+        saved = _saved_origin(settings)
+        if saved is not None and saved != origin and not replace:
+            raise BootstrapError(
+                "A different Forge destination is already saved. Confirm the replacement with the "
+                "user, then add --replace-saved-origin."
+            )
+        temporary: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=settings.parent, prefix=".settings-", delete=False
+            ) as stream:
+                temporary = Path(stream.name)
+                json.dump({"version": 1, "origin": origin}, stream, indent=2)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, settings)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
 
 
 def bootstrap(origin: str, destination: Path, *, reuse: bool) -> dict[str, str]:

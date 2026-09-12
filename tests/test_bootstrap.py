@@ -7,6 +7,7 @@ import os
 import runpy
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -627,13 +628,77 @@ def test_failed_settings_replacement_preserves_previous_default(
     def fail_replace(source: Path, destination: Path) -> None:
         raise OSError("simulated write failure")
 
-    monkeypatch.setattr(os, "replace", fail_replace)
-    with pytest.raises(OSError, match="simulated write failure"):
-        namespace["_remember_origin"](
-            settings, "https://github.company.example/team/second.git", replace=True
-        )
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "replace", fail_replace)
+        with pytest.raises(OSError, match="simulated write failure"):
+            namespace["_remember_origin"](
+                settings, "https://github.company.example/team/second.git", replace=True
+            )
     assert settings.read_bytes() == before
-    assert list(tmp_path.iterdir()) == [settings]
+    assert set(tmp_path.iterdir()) == {settings, tmp_path / ".settings.json.lock"}
+    retried = _helper(
+        "--config",
+        str(settings),
+        "--origin",
+        "https://github.company.example/team/first.git",
+        "--remember-origin",
+    )
+    assert retried.returncode == 0, retried.stderr
+
+
+@pytest.mark.parametrize("already_saved", [False, True])
+def test_concurrent_save_cannot_overwrite_another_clients_choice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, already_saved: bool
+) -> None:
+    namespace = runpy.run_path(str(SCRIPT))
+    settings = tmp_path / "settings.json"
+    first = "https://github.company.example/team/first.git"
+    second = "https://github.company.example/team/second.git"
+    if already_saved:
+        namespace["_remember_origin"](settings, first, replace=False)
+    create_temporary = tempfile.NamedTemporaryFile
+
+    def competing_writer(*args, **kwargs):
+        # The first writer has read the default but has not yet created its new file.
+        competing = _helper("--config", str(settings), "--origin", second, "--remember-origin")
+        assert competing.returncode == 1, competing.stdout
+        assert "Cannot lock Forge settings" in competing.stderr
+        return create_temporary(*args, **kwargs)
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", competing_writer)
+    namespace["_remember_origin"](settings, first, replace=False)
+    assert json.loads(settings.read_text())["origin"] == first
+    retried = _helper("--config", str(settings), "--origin", second, "--remember-origin")
+    assert retried.returncode == 1
+    assert "Confirm the replacement" in retried.stderr
+    assert json.loads(settings.read_text())["origin"] == first
+
+
+def test_settings_lock_is_released_when_a_client_exits(tmp_path: Path) -> None:
+    settings = tmp_path / "settings.json"
+    crashed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os, runpy, sys; from pathlib import Path; "
+            "lock = runpy.run_path(sys.argv[1])['_settings_lock'](Path(sys.argv[2])); "
+            "lock.__enter__(); os._exit(7)",
+            str(SCRIPT),
+            str(settings),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert crashed.returncode == 7, crashed.stderr
+    saved = _helper(
+        "--config",
+        str(settings),
+        "--origin",
+        "https://github.company.example/team/forge.git",
+        "--remember-origin",
+    )
+    assert saved.returncode == 0, saved.stderr
 
 
 @pytest.mark.parametrize(

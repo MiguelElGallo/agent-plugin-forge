@@ -66,6 +66,8 @@ One credential-free URL is stored per operating-system user, shared across proje
 
 An absolute `XDG_CONFIG_HOME` overrides the platform directory. `--config SETTINGS_PATH` selects a specific settings file, useful for managed environments and isolated tests. The JSON contains `{"version": 1, "origin": "CONFIRMED_FORGE_URL"}`. Corrupt, unsafe, or unreadable settings stop the helper; it does not choose another repository.
 
+Saving a default locks the settings while checking and writing the new value, so concurrent clients cannot silently replace each other's choice. If another client is saving, retry after it finishes. The adjacent `.settings.json.lock` file stays in place; the operating system releases its lock when the saving process closes or exits.
+
 ## `forge branch`
 
 Creates `skill/<plugin>/<skill>` from a clean local base aligned with `origin/main`.
