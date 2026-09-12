@@ -7,7 +7,7 @@
       "email": "miguel.zurcher@gmail.com"
     },
     "description": "Reviewed Agent Skills and MCP servers packaged for Agent Plugins 1.0.",
-    "version": "0.0.1"
+    "version": "0.3.0"
   },
   "plugins": [
     {

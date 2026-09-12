@@ -24,11 +24,13 @@ Each helper checks the live remote for collisions and alignment. It never pushes
 
 1. Stage remote content locally at an immutable revision and inspect it without executing it.
 2. Run `uv run forge import` without `--apply`.
-3. Review the complete plan, source, license, and destination.
+3. Review the complete plan, source, license, and destination, then obtain approval for the exact plan hash.
 4. Repeat with `--apply --expected-sha256 HASH`.
 5. Run `uv run forge generate`.
 
 New plugins require category, version, description, author, license, origin, and immutable revision. Bundles inherit category and require a version bump. Imported content remains under its applicable upstream license.
+
+Import adds a new skill destination; it does not overwrite an existing skill. For a central team repository, follow [Maintain a team skill marketplace](docs/how-to/maintain-team-marketplace.md) for ownership, private-origin selection, and the contributor workflow for existing-skill updates.
 
 ## Run the gate
 
@@ -42,6 +44,8 @@ uv run zensical build --clean --strict
 ```
 
 Review all instructions, executable code, MCP endpoints, licenses, provenance, and generated output. Open a pull request targeting `main`; merge only after required checks pass and review conversations are resolved.
+
+Renderer golden tests use a fixed synthetic marketplace. Adding or revising a real plugin does not require updating `tests/golden/`; `forge check` validates the current catalog and generated indexes. Change golden snapshots only for an intentional renderer-format change and review the new fixture output. Follow [the pull-request workflow](docs/how-to/pull-request.md) for publication approval and the exact-head merge check.
 
 ## Place documentation with Diátaxis
 

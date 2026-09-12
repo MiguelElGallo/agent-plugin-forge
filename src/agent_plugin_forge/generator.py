@@ -12,6 +12,10 @@ from .filesystem import generated_path_errors
 from .marketplaces import render_marketplaces
 
 
+class _GenerationRecoveryError(ForgeError):
+    """Signal incomplete rollback whose staged files and backups must be retained."""
+
+
 def _output_safety_errors(repo: Path, marketplace_paths: list[Path]) -> list[str]:
     """Collect safety errors for generated marketplace output paths."""
 
@@ -35,6 +39,7 @@ def _publish_transactionally(repo: Path, staging: Path, targets: list[Path], bac
     """Publish staged outputs atomically and restore backups after failure."""
 
     replaced: list[tuple[Path, Path | None]] = []
+    installed: set[Path] = set()
     try:
         for target in targets:
             staged = staging / target.relative_to(repo)
@@ -46,15 +51,26 @@ def _publish_transactionally(repo: Path, staging: Path, targets: list[Path], bac
                 os.replace(target, backup)
             replaced.append((target, backup))
             os.replace(staged, target)
-    except Exception:
+            installed.add(target)
+    except Exception as publish_error:
+        recovery_errors: list[str] = []
         for target, backup in reversed(replaced):
-            if target.is_dir():
-                shutil.rmtree(target)
-            elif target.exists() or target.is_symlink():
-                target.unlink()
-            if backup is not None and backup.exists():
-                backup.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(backup, target)
+            try:
+                if target in installed:
+                    if target.is_dir():
+                        shutil.rmtree(target)
+                    elif target.exists() or target.is_symlink():
+                        target.unlink()
+                if backup is not None:
+                    os.replace(backup, target)
+            except Exception as recovery_error:
+                recovery_errors.append(f"{target.relative_to(repo).as_posix()}: {recovery_error}")
+        if recovery_errors:
+            raise _GenerationRecoveryError(
+                f"Generation rollback failed; recovery files preserved at {backups.parent}. "
+                "Inspect the affected outputs and restore any remaining backups "
+                "before regenerating.\n- " + "\n- ".join(recovery_errors)
+            ) from publish_error
         raise
 
 
@@ -65,8 +81,9 @@ def generate(repo: Path) -> None:
     if safety_errors:
         raise ForgeError("Unsafe generated output:\n- " + "\n- ".join(safety_errors))
 
-    with tempfile.TemporaryDirectory(prefix=".forge-generate-", dir=repo) as temporary:
-        temporary_root = Path(temporary)
+    temporary_root = Path(tempfile.mkdtemp(prefix=".forge-generate-", dir=repo))
+    preserve_recovery = False
+    try:
         staging = temporary_root / "staging"
         _stage_outputs(repo, staging, rendered)
         _publish_transactionally(
@@ -75,6 +92,12 @@ def generate(repo: Path) -> None:
             [*rendered],
             temporary_root / "backups",
         )
+    except _GenerationRecoveryError:
+        preserve_recovery = True
+        raise
+    finally:
+        if not preserve_recovery:
+            shutil.rmtree(temporary_root)
 
 
 def generation_drift(repo: Path) -> list[str]:

@@ -59,3 +59,9 @@ uv run forge check
 ```
 
 Review the generated diff. Both marketplace files are derived outputs; make metadata corrections in `plugins/` or `catalog/plugins.json` first. Use `uv run forge generate --check` when you only want a read-only drift check; success exits silently with status `0`.
+
+## Marketplace generation reports a rollback failure
+
+If generation fails while replacing an output, Forge attempts to restore every output it touched. If any restoration fails, the error identifies a `.forge-generate-*` recovery directory in the checkout. Keep that directory: its `backups/` tree contains originals that could not be restored, under their repository-relative paths.
+
+Inspect the reported error and filesystem permissions, recover any remaining originals from `backups/`, then run `uv run forge generate` and `uv run forge check`. Remove the recovery directory only after verifying the outputs and preserving any files you need.

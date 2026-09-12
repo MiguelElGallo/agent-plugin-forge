@@ -6,6 +6,7 @@ The `Check` workflow runs the same repository gate on pull requests and pushes t
 
 ```bash
 uv sync --locked
+uv run forge --version
 uv run ruff check .
 uv run ruff format --check .
 uv run ty check
@@ -16,6 +17,10 @@ uv run zensical build --clean --strict
 ```
 
 Pydantic owns forge-specific catalog, provenance, marketplace, and MCP semantic contracts. Vendored JSON Schema remains authoritative for Agent Plugins `plugin.json` and `mcp.json`. Schema bytes are pinned by complete checksums for offline validation.
+
+When updating Python libraries, review their supported Python versions and migration notes, update `pyproject.toml`, and run `uv lock --upgrade` followed by the local gate. The project supports Python 3.11 and later; CI also tests the minimum version. Subprocess coverage uses `[tool.coverage.run] patch = ["subprocess"]`, as required by [pytest-cov 7](https://pytest-cov.readthedocs.io/en/latest/subprocess-support.html).
+
+Keep the project version, shipped Forge plugin, and marketplace version aligned. Generate the client indexes with `uv run forge generate` and review the changes. The Python package and `forge --version` read the installed distribution metadata; the test suite checks that it matches the project, lockfile, plugin, and catalog. Renderer golden tests use a fixed synthetic marketplace: ordinary imports and version bumps do not change those snapshots. Update them only when an intentional renderer change alters the reviewed fixture output. `forge check` validates the live repository's marketplace contents and generated indexes.
 
 ## Client acceptance matrix
 

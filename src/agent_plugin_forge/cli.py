@@ -11,6 +11,7 @@ from typing import Annotated
 import typer
 from pydantic import ValidationError
 
+from . import __version__
 from .common import ForgeError, repository_root
 from .doctor import diagnose
 from .generator import generate as generate_repository
@@ -34,6 +35,19 @@ app = typer.Typer(
     no_args_is_help=True,
     pretty_exceptions_show_locals=False,
 )
+
+
+@app.callback(invoke_without_command=True)
+def cli_callback(
+    version: Annotated[
+        bool, typer.Option("--version", is_eager=True, help="Show the installed Forge version.")
+    ] = False,
+) -> None:
+    """Handle global options without requiring a Forge repository."""
+
+    if version:
+        typer.echo(f"agent-plugin-forge {__version__}")
+        raise typer.Exit()
 
 
 @app.command("branch", help="Create a collision-safe branch for one skill.")

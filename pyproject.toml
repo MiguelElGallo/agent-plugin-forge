@@ -1,18 +1,18 @@
 [project]
 name = "agent-plugin-forge"
-version = "0.0.1"
+version = "0.3.0"
 description = "Review and publish Agent Skills and MCP servers as validated Agent Plugins 1.0 distributions."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "MiguelElGallo" }]
 dependencies = [
-  "jsonschema>=4.25,<5",
-  "license-expression>=30.4,<31",
-  "pydantic>=2.12,<3",
-  "pyyaml>=6.0.2,<7",
+  "jsonschema>=4.26,<5",
+  "license-expression>=30.4.4,<31",
+  "pydantic>=2.13.5,<3",
+  "pyyaml>=6.0.3,<7",
   "semantic-version>=2.10,<3",
-  "typer>=0.27.1,<0.28",
+  "typer>=0.27.2,<0.28",
 ]
 
 [project.scripts]
@@ -20,20 +20,23 @@ forge = "agent_plugin_forge.cli:main"
 
 [dependency-groups]
 dev = [
-  "pytest>=8.4,<9",
-  "pytest-cov>=6.2,<7",
-  "ruff>=0.12,<0.13",
-  "ty>=0.0.1a17,<0.0.2",
-  "zensical>=0.0.11,<0.1",
+  "pytest>=9.1.1,<10",
+  "pytest-cov>=7.1,<8",
+  "ruff>=0.16.7,<0.17",
+  "ty>=0.0.80,<0.1",
+  "zensical>=0.0.61,<0.1",
 ]
 
 [build-system]
-requires = ["uv_build>=0.8.13,<0.9"]
+requires = ["uv_build>=0.12.13,<0.13"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers --strict-config --cov=agent_plugin_forge --cov-report=term-missing --cov-fail-under=85"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+patch = ["subprocess"]
 
 [tool.ruff]
 line-length = 100
@@ -62,4 +65,4 @@ select = [
 "tests/**/*.py" = ["D101", "D102", "D103", "D104", "D105", "D106", "D107"]
 
 [tool.ty.src]
-include = ["src", "tests"]
+include = ["src", "tests", "benchmarks"]

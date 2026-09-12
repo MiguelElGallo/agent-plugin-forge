@@ -2,6 +2,8 @@
 
 Use this guide for a private repository, mirror, GitHub Enterprise Server, or a Forge checkout stored outside the operating system's temporary directory.
 
+The selected repository must contain the complete Forge runtime and catalog on `main`. For a new central team repository, start with [Maintain a team skill marketplace](maintain-team-marketplace.md), including repository access, branch rules, and a distinct marketplace identity.
+
 Set one Git URL for installation and publication. The examples use:
 
 ```text
@@ -48,7 +50,7 @@ To register the marketplace without installing immediately, add it to VS Code us
 }
 ```
 
-All three clients document full HTTPS Git marketplace URLs. HTTPS Git authentication may use a configured credential helper; SSH uses the SSH agent and configuration. Confirm that the selected client can authenticate to the intended host under your organization's policy. Never embed a personal access token in the URL. Live private-host authentication has not been qualified in the [recorded compatibility evidence](../reference/compatibility.md).
+All three clients document full HTTPS Git marketplace URLs. HTTPS Git authentication may use a configured credential helper; SSH uses the SSH agent and configuration. Confirm that the selected client can authenticate to the intended host under your organization's policy. Never embed a personal access token in the URL. Check the [recorded compatibility evidence](../reference/compatibility.md) for the exact private GitHub and GitHub Enterprise Server qualification scope.
 
 Installing from a private marketplace does not automatically change the publication helper's default origin. Include the private Forge URL in every review or reuse prompt. As an alternative, set `AGENT_PLUGIN_FORGE_ORIGIN` in the environment that launches your agent client.
 
@@ -68,7 +70,7 @@ Include the origin in the review prompt:
 
 > My skill is at `/absolute/path/to/my-skill`. Use Forge origin `https://github.company.example/platform/agent-plugin-forge.git`. Review it for publication and stop after the review plan.
 
-The installed helper passes the selected GitHub or GHES origin through clone, validation, push, and pull-request targeting. Local/file Git sources are useful for offline review and acceptance tests, but they do not have a GitHub pull-request endpoint. A local-origin plan is bound to its `file://` repository URL and is review-only. To publish, bootstrap the final GitHub/GHES origin and generate, review, and approve a new plan; never reuse the local-origin hash.
+The installed helper clones and reports the selected origin. The publication skill then uses that returned origin for validation and, after approval, push and pull-request targeting; the helper itself does not publish. Local/file Git sources are useful for offline review and acceptance tests, but they do not have a GitHub pull-request endpoint. A local-origin plan is bound to its `file://` repository URL and is review-only. To publish, bootstrap the final GitHub/GHES origin and generate, review, and approve a new plan; never reuse the local-origin hash.
 
 A mirror on another Git host can also be installed and reviewed, but the automated pull-request phase supports only GitHub.com and GitHub Enterprise Server. Use the host's contribution workflow only after generating and approving a new plan bound to that final repository URL.
 

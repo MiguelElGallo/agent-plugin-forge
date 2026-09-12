@@ -1,0 +1,244 @@
+{
+  "forge_version": "0.0.2",
+  "python": "3.12.13",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "runs_per_size": 5,
+  "method": "Complete CLI process timings; fresh fixtures; warm dependency and OS caches; local Git only.",
+  "excludes": [
+    "network",
+    "LLM reasoning",
+    "human review",
+    "client install",
+    "full test suite"
+  ],
+  "results": {
+    "1": {
+      "samples_ms": [
+        {
+          "bootstrap_fresh": 95.184,
+          "bootstrap_reuse": 82.981,
+          "branch": 208.263,
+          "plan": 111.251,
+          "reject_changed_source": 107.701,
+          "apply": 111.945,
+          "generate": 108.367,
+          "check": 109.811,
+          "reject_duplicate": 100.32,
+          "pr_scope": 108.651
+        },
+        {
+          "bootstrap_fresh": 94.3,
+          "bootstrap_reuse": 82.524,
+          "branch": 154.997,
+          "plan": 106.625,
+          "reject_changed_source": 106.362,
+          "apply": 111.784,
+          "generate": 104.77,
+          "check": 104.97,
+          "reject_duplicate": 101.019,
+          "pr_scope": 107.57
+        },
+        {
+          "bootstrap_fresh": 91.287,
+          "bootstrap_reuse": 81.933,
+          "branch": 153.105,
+          "plan": 106.832,
+          "reject_changed_source": 105.983,
+          "apply": 112.851,
+          "generate": 105.337,
+          "check": 105.564,
+          "reject_duplicate": 101.636,
+          "pr_scope": 107.785
+        },
+        {
+          "bootstrap_fresh": 92.853,
+          "bootstrap_reuse": 80.749,
+          "branch": 154.317,
+          "plan": 106.059,
+          "reject_changed_source": 106.815,
+          "apply": 112.798,
+          "generate": 104.797,
+          "check": 104.87,
+          "reject_duplicate": 101.645,
+          "pr_scope": 107.855
+        },
+        {
+          "bootstrap_fresh": 94.413,
+          "bootstrap_reuse": 80.631,
+          "branch": 154.171,
+          "plan": 108.302,
+          "reject_changed_source": 106.097,
+          "apply": 112.584,
+          "generate": 104.677,
+          "check": 104.503,
+          "reject_duplicate": 100.963,
+          "pr_scope": 107.417
+        }
+      ],
+      "median_ms": {
+        "bootstrap_fresh": 94.3,
+        "bootstrap_reuse": 81.933,
+        "branch": 154.317,
+        "plan": 106.832,
+        "reject_changed_source": 106.362,
+        "apply": 112.584,
+        "generate": 104.797,
+        "check": 104.97,
+        "reject_duplicate": 101.019,
+        "pr_scope": 107.785
+      }
+    },
+    "100": {
+      "samples_ms": [
+        {
+          "bootstrap_fresh": 107.113,
+          "bootstrap_reuse": 85.251,
+          "branch": 155.344,
+          "plan": 117.874,
+          "reject_changed_source": 116.094,
+          "apply": 149.696,
+          "generate": 119.323,
+          "check": 145.695,
+          "reject_duplicate": 107.637,
+          "pr_scope": 107.922
+        },
+        {
+          "bootstrap_fresh": 107.77,
+          "bootstrap_reuse": 89.672,
+          "branch": 153.646,
+          "plan": 117.96,
+          "reject_changed_source": 117.32,
+          "apply": 149.269,
+          "generate": 119.798,
+          "check": 147.696,
+          "reject_duplicate": 120.269,
+          "pr_scope": 110.177
+        },
+        {
+          "bootstrap_fresh": 109.039,
+          "bootstrap_reuse": 87.932,
+          "branch": 153.493,
+          "plan": 116.106,
+          "reject_changed_source": 117.053,
+          "apply": 149.457,
+          "generate": 119.205,
+          "check": 144.348,
+          "reject_duplicate": 107.199,
+          "pr_scope": 107.555
+        },
+        {
+          "bootstrap_fresh": 104.068,
+          "bootstrap_reuse": 87.831,
+          "branch": 155.194,
+          "plan": 119.434,
+          "reject_changed_source": 117.386,
+          "apply": 146.714,
+          "generate": 118.598,
+          "check": 145.2,
+          "reject_duplicate": 107.099,
+          "pr_scope": 112.545
+        },
+        {
+          "bootstrap_fresh": 105.51,
+          "bootstrap_reuse": 85.935,
+          "branch": 153.026,
+          "plan": 116.506,
+          "reject_changed_source": 116.383,
+          "apply": 147.542,
+          "generate": 118.246,
+          "check": 147.145,
+          "reject_duplicate": 111.281,
+          "pr_scope": 107.332
+        }
+      ],
+      "median_ms": {
+        "bootstrap_fresh": 107.113,
+        "bootstrap_reuse": 87.831,
+        "branch": 153.646,
+        "plan": 117.874,
+        "reject_changed_source": 117.053,
+        "apply": 149.269,
+        "generate": 119.205,
+        "check": 145.695,
+        "reject_duplicate": 107.637,
+        "pr_scope": 107.922
+      }
+    },
+    "1000": {
+      "samples_ms": [
+        {
+          "bootstrap_fresh": 109.98,
+          "bootstrap_reuse": 99.327,
+          "branch": 166.515,
+          "plan": 225.825,
+          "reject_changed_source": 223.089,
+          "apply": 497.698,
+          "generate": 247.612,
+          "check": 490.758,
+          "reject_duplicate": 163.171,
+          "pr_scope": 116.151
+        },
+        {
+          "bootstrap_fresh": 111.308,
+          "bootstrap_reuse": 99.396,
+          "branch": 186.624,
+          "plan": 256.512,
+          "reject_changed_source": 217.359,
+          "apply": 499.054,
+          "generate": 247.251,
+          "check": 488.759,
+          "reject_duplicate": 162.412,
+          "pr_scope": 131.662
+        },
+        {
+          "bootstrap_fresh": 112.822,
+          "bootstrap_reuse": 100.474,
+          "branch": 187.896,
+          "plan": 253.707,
+          "reject_changed_source": 217.273,
+          "apply": 493.489,
+          "generate": 247.271,
+          "check": 496.023,
+          "reject_duplicate": 164.23,
+          "pr_scope": 115.062
+        },
+        {
+          "bootstrap_fresh": 110.879,
+          "bootstrap_reuse": 100.366,
+          "branch": 185.391,
+          "plan": 253.361,
+          "reject_changed_source": 217.744,
+          "apply": 492.919,
+          "generate": 246.575,
+          "check": 487.976,
+          "reject_duplicate": 163.259,
+          "pr_scope": 115.207
+        },
+        {
+          "bootstrap_fresh": 110.264,
+          "bootstrap_reuse": 100.175,
+          "branch": 185.608,
+          "plan": 254.743,
+          "reject_changed_source": 219.119,
+          "apply": 493.332,
+          "generate": 248.449,
+          "check": 489.737,
+          "reject_duplicate": 163.742,
+          "pr_scope": 116.083
+        }
+      ],
+      "median_ms": {
+        "bootstrap_fresh": 110.879,
+        "bootstrap_reuse": 100.175,
+        "branch": 185.608,
+        "plan": 253.707,
+        "reject_changed_source": 217.744,
+        "apply": 493.489,
+        "generate": 247.271,
+        "check": 489.737,
+        "reject_duplicate": 163.259,
+        "pr_scope": 116.083
+      }
+    }
+  }
+}

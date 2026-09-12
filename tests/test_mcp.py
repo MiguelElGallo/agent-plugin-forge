@@ -87,7 +87,7 @@ def test_stdio_rejects_case_variant_root_override() -> None:
     ],
 )
 def test_remote_transport_rejects_unsafe_urls(url: str) -> None:
-    with pytest.raises(ValidationError, match="url|loopback"):
+    with pytest.raises(ValidationError, match=r"url|loopback"):
         McpConfiguration.model_validate(configuration({"type": "streamable-http", "url": url}))
 
 

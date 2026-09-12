@@ -202,7 +202,7 @@ def test_cli_rejects_linked_intake_roots(
         linked_license.symlink_to(license_file)
         license_file = linked_license
     monkeypatch.chdir(empty_forge)
-    with pytest.raises(ForgeError, match="link|symlink"):
+    with pytest.raises(ForgeError, match=r"link|symlink"):
         run(
             [
                 "import",

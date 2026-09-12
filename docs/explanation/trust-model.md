@@ -4,7 +4,7 @@ Packaging is not trust. A schema-valid plugin may still contain harmful instruct
 
 ## What the forge prevents
 
-During intake and generation, Forge rejects:
+Forge's intake and repository-validation gates reject:
 
 - path traversal, resolved-root escapes, symlinks, junctions, and special files;
 - case-fold collisions that behave differently across operating systems;
@@ -16,7 +16,7 @@ During intake and generation, Forge rejects:
 - unsafe MCP commands, working directories, URLs, headers, root overrides, and missing packaged commands;
 - stale or partially published generated output.
 
-The importer plans before writing and binds the full approved plan. It copies content without running scripts or hooks. Generation builds all client artifacts in a temporary tree, validates them, then replaces outputs as a transaction. Failure tests prove rollback restores the previous state.
+The importer plans before writing and binds the full approved plan. It copies content without running scripts or hooks. Generation prepares validated client outputs in a temporary tree before replacing the destination files. Failure tests cover ordinary rollback and preservation of recovery files when restoration itself fails. Keep any reported recovery directory until the repository has been restored; see [rollback recovery](../how-to/troubleshoot.md#marketplace-generation-reports-a-rollback-failure).
 
 ## Authorization boundary
 
