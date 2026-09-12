@@ -34,6 +34,9 @@ def _helper(*arguments: str, cwd: Path | None = None) -> subprocess.CompletedPro
     return subprocess.run(
         [sys.executable, str(SCRIPT), *arguments],
         cwd=cwd,
+        # Windows putenv removes native variables set to an empty string.
+        # Pass the Python mapping explicitly so the empty-override case reaches the child.
+        env=dict(os.environ),
         check=False,
         capture_output=True,
         text=True,
