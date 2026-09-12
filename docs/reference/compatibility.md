@@ -8,9 +8,11 @@ The project, shipped Forge plugin, marketplace, and lockfile use `1.0.1`. This p
 
 The regression suite covers source replacement between inspection and open, mutation during reads, bounded reads, byte-preserving copies, license snapshot hashing, exact file-map approval, CRLF metadata, all C0/DEL/C1 terminal controls, and POSIX surrogateescape output. It checks that ordinary Unicode paths and decoded JSON values remain unchanged. Import plans from older versions require fresh review after upgrade.
 
-On macOS, the 1.0.1 suite passed 380 tests on both Python 3.11.16 and 3.12.13, with two platform-specific skips and 92% coverage. Ruff, ty, Forge validation, generation drift, actionlint, and the strict documentation build passed. Independent patch review identified a non-UTF-8 filename edge case; it was corrected and covered by a regression before the final full-suite runs.
+On macOS, the 1.0.1 suite passed 386 tests on both Python 3.11.16 and 3.12.13, with two platform-specific skips and 92% coverage. Ruff, ty, Forge validation, generation drift, actionlint, and the strict documentation build passed. Independent patch review identified a non-UTF-8 filename edge case; it was corrected and covered by a regression before the final full-suite runs.
 
 The wheel installed into a fresh Python 3.12 environment and passed version, branch-name, and repository-validation smoke checks. Copilot CLI `1.0.84-1` enabled the 1.0.1 plugin with one skill from an isolated local marketplace. This is local installation evidence, not a fresh remote download or agent publication invocation. VS Code and Codex runtime acceptance was not repeated for this CLI-only patch; the dated 1.0.0 and earlier observations below retain their original scope. The GitHub release records final cross-platform CI and public marketplace read-back.
+
+Initial Windows CI exposed a cross-API file-metadata mismatch. The correction preserves file identity and read-change checks while accounting for CPython's [Windows path-stat timestamp and executable-suffix behavior](https://github.com/python/cpython/blob/v3.12.10/Modules/posixmodule.c#L1894-L2149). The regression suite includes modeled Windows metadata and executable suffixes.
 
 ## Previous release: 1.0.0
 

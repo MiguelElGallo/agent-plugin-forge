@@ -33,15 +33,24 @@ class FileSnapshot:
 
 
 def _file_identity(value: os.stat_result) -> tuple[int, ...]:
-    """Compare an opened file with its inspected identity and modification state."""
+    """Compare stable metadata shared by path and descriptor stat APIs."""
+
+    mode = value.st_mode
+    timestamp = value.st_ctime_ns
+    if os.name == "nt":
+        # Windows lstat adds suffix-derived execute bits that fstat cannot infer.
+        # CPython 3.12 lstat reports creation time in ctime, but fstat reports
+        # metadata-change time. Compare birthtime across APIs when available.
+        mode &= ~0o111
+        timestamp = getattr(value, "st_birthtime_ns", value.st_ctime_ns)
 
     return (
         value.st_dev,
         value.st_ino,
-        value.st_mode,
+        mode,
         value.st_size,
         value.st_mtime_ns,
-        value.st_ctime_ns,
+        timestamp,
     )
 
 
@@ -97,6 +106,7 @@ def snapshot_regular_file(
             after = os.fstat(descriptor)
             if (
                 _file_identity(after) != _file_identity(opened)
+                or after.st_ctime_ns != opened.st_ctime_ns
                 or _file_identity(path.lstat()) != _file_identity(opened)
                 or is_linklike(path)
             ):
@@ -120,7 +130,9 @@ def snapshot_regular_file(
         raise ForgeError(f"Possible secret file is not accepted: {diagnostic_value(path.name)}")
     if any(pattern.search(data) for pattern in SECRET_CONTENT_RES):
         raise ForgeError(f"Possible secret content is not accepted: {diagnostic_value(path.name)}")
-    return FileSnapshot(data, bool(opened.st_mode & 0o111))
+    # Retain Windows' existing suffix-based executable convention. On POSIX,
+    # before.st_mode has been verified equal to the descriptor's actual mode.
+    return FileSnapshot(data, bool(before.st_mode & 0o111))
 
 
 def inspect_regular_file(path: Path, *, file_label: str = "Source file") -> bytes:

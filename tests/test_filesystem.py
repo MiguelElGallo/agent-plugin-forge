@@ -3,12 +3,44 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from agent_plugin_forge import filesystem
 from agent_plugin_forge.errors import ForgeError
+
+
+def test_windows_identity_normalizes_only_cross_api_metadata(monkeypatch) -> None:
+    metadata = {
+        "st_dev": 7,
+        "st_ino": 42,
+        "st_mode": stat.S_IFREG | 0o666,
+        "st_size": 16,
+        "st_mtime_ns": 200,
+        "st_ctime_ns": 300,
+        "st_birthtime_ns": 100,
+    }
+    descriptor = cast(os.stat_result, SimpleNamespace(**metadata))
+    path_metadata = {**metadata, "st_mode": stat.S_IFREG | 0o777, "st_ctime_ns": 100}
+    path = cast(os.stat_result, SimpleNamespace(**path_metadata))
+    monkeypatch.setattr(filesystem, "os", SimpleNamespace(name="nt"))
+    assert filesystem._file_identity(path) == filesystem._file_identity(descriptor)
+    for field in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_birthtime_ns"):
+        changed = cast(os.stat_result, SimpleNamespace(**{**metadata, field: metadata[field] + 1}))
+        assert filesystem._file_identity(path) != filesystem._file_identity(changed)
+
+
+@pytest.mark.parametrize("suffix", [".txt", ".EXE", ".bat", ".cmd", ".com"])
+def test_snapshot_preserves_platform_executable_convention(tmp_path: Path, suffix: str) -> None:
+    path = tmp_path / f"resource{suffix}"
+    path.write_bytes(b"reviewed")
+    snapshot = filesystem.snapshot_regular_file(path)
+    assert snapshot.content == b"reviewed"
+    assert snapshot.executable == bool(path.stat().st_mode & 0o111)
 
 
 def test_copy_preserves_existing_destination(tmp_path: Path) -> None:
