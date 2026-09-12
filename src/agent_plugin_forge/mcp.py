@@ -10,7 +10,7 @@ from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from .common import load_json
-from .errors import ForgeError
+from .errors import ForgeError, diagnostic_value
 from .models import McpConfiguration, StdioServer
 
 
@@ -33,15 +33,21 @@ def load_mcp_configuration(repo: Path, plugin_root: Path) -> McpConfiguration | 
     )
     if schema_errors:
         error = schema_errors[0]
-        raise ForgeError(f"{path}: {_location(tuple(error.absolute_path))}: {error.message}")
+        raise ForgeError(
+            f"{diagnostic_value(path)}: {diagnostic_value(_location(tuple(error.absolute_path)))}: "
+            f"{diagnostic_value(error.message)}"
+        )
     try:
         configuration = McpConfiguration.model_validate(payload)
     except ValidationError as exc:
         first = exc.errors(include_url=False)[0]
-        raise ForgeError(f"{path}: {_location(tuple(first['loc']))}: {first['msg']}") from exc
+        raise ForgeError(
+            f"{diagnostic_value(path)}: {diagnostic_value(_location(tuple(first['loc'])))}: "
+            f"{diagnostic_value(first['msg'])}"
+        ) from exc
     component_errors = mcp_component_errors(plugin_root, configuration)
     if component_errors:
-        raise ForgeError(f"{path}: {component_errors[0]}")
+        raise ForgeError(f"{diagnostic_value(path)}: {component_errors[0]}")
     return configuration
 
 
@@ -74,20 +80,29 @@ def mcp_component_errors(plugin_root: Path, configuration: McpConfiguration) -> 
                 try:
                     mode = command.lstat().st_mode
                 except OSError as exc:
-                    errors.append(f"MCP server {name!r} command does not exist: {command} ({exc})")
+                    errors.append(
+                        f"MCP server {name!r} command does not exist: {diagnostic_value(command)} "
+                        f"({diagnostic_value(exc)})"
+                    )
                 else:
                     if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
                         errors.append(
                             f"MCP server {name!r} command must be a regular packaged file: "
-                            f"{command}"
+                            f"{diagnostic_value(command)}"
                         )
                     elif os.name != "nt" and not mode & 0o111:
-                        errors.append(f"MCP server {name!r} command is not executable: {command}")
+                        errors.append(
+                            f"MCP server {name!r} command is not executable: "
+                            f"{diagnostic_value(command)}"
+                        )
         if server.cwd is not None:
             cwd = _plugin_root_path(plugin_root, server.cwd)
             if cwd is not None:
                 if not cwd.resolve().is_relative_to(root):
                     errors.append(f"MCP server {name!r} cwd escapes the plugin root")
                 elif not cwd.is_dir():
-                    errors.append(f"MCP server {name!r} cwd is not a packaged directory: {cwd}")
+                    errors.append(
+                        f"MCP server {name!r} cwd is not a packaged directory: "
+                        f"{diagnostic_value(cwd)}"
+                    )
     return errors

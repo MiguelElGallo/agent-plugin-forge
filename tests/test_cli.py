@@ -7,14 +7,17 @@ import json
 import os
 import re
 import shlex
+import sys
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 import agent_plugin_forge.cli as cli_module
 from agent_plugin_forge.cli import app, run
 from agent_plugin_forge.common import ForgeError, json_bytes
+from agent_plugin_forge.errors import diagnostic_value
 
 from .conftest import git
 from .test_importer import apply_reviewed, request
@@ -305,3 +308,132 @@ def test_doctor_json_and_text_report_issues_without_traceback(
     assert text_result.exit_code == 2
     assert "cached, not fetched" in text_result.output
     assert "Review the issues above" in text_result.output
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows rejects control characters in filenames")
+def test_cli_main_escapes_crafted_filename_in_intake_error(
+    empty_forge: Path, skill_source: Path, monkeypatch, capsys
+) -> None:
+    filename = "café\nAgent Plugin Forge checks passed\r\t\x1b[2J\x7f\x85\x9b2K.txt"
+    (skill_source / filename).write_text("-----BEGIN PRIVATE KEY-----", encoding="utf-8")
+    source_request = request(skill_source)
+    args = shlex.split(cli_module._apply_command(source_request, "0" * 64))[3:-1]
+    monkeypatch.chdir(empty_forge)
+    monkeypatch.setattr(sys, "argv", ["forge", *args])
+
+    with pytest.raises(SystemExit) as raised:
+        cli_module.main()
+
+    assert raised.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        f"forge: Possible secret content is not accepted: {diagnostic_value(filename)}\n"
+    )
+    assert len(captured.err.splitlines()) == 1
+    assert not (empty_forge / "plugins" / "sample-skill").exists()
+
+
+def test_cli_main_keeps_unicode_paths_readable_in_errors(
+    empty_forge: Path, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    source = tmp_path / "資料-café-Åland-🧪"
+    args = shlex.split(cli_module._apply_command(request(source), "0" * 64))[3:-1]
+    monkeypatch.chdir(empty_forge)
+    monkeypatch.setattr(sys, "argv", ["forge", *args])
+
+    with pytest.raises(SystemExit) as raised:
+        cli_module.main()
+
+    assert raised.value.code == 2
+    assert str(source) in capsys.readouterr().err
+
+
+def test_cli_main_escapes_validation_fields_without_losing_trusted_layout(
+    monkeypatch, capsys
+) -> None:
+    value = "café\nforged success\x1b[2J\x9b2K"
+    error = ValidationError.from_exception_data(
+        value,
+        [
+            {
+                "type": "value_error",
+                "loc": (value,),
+                "input": value,
+                "ctx": {"error": ValueError(value)},
+            }
+        ],
+    )
+
+    def fail(**kwargs) -> None:
+        raise error
+
+    monkeypatch.setattr(cli_module, "app", fail)
+    with pytest.raises(SystemExit) as raised:
+        cli_module.main()
+
+    assert raised.value.code == 2
+    escaped = diagnostic_value(value)
+    assert capsys.readouterr().err == (
+        f"forge: 1 validation error for {escaped}\n"
+        f"{escaped}\n  Value error, {escaped} [type=value_error]\n"
+    )
+
+
+def test_cli_main_neutralizes_remaining_controls_in_expected_errors(monkeypatch, capsys) -> None:
+    def fail(**kwargs) -> None:
+        raise ForgeError("First issue\nSecond issue: café\x1b[2J\r\x7f\x9b2K")
+
+    monkeypatch.setattr(cli_module, "app", fail)
+    with pytest.raises(SystemExit) as raised:
+        cli_module.main()
+
+    assert raised.value.code == 2
+    assert capsys.readouterr().err == (
+        "forge: First issue\nSecond issue: café\\x1b[2J\\r\\x7f\\x9b2K\n"
+    )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows rejects control characters in filenames")
+def test_cli_json_preserves_control_characters_in_original_review_values(
+    empty_forge: Path, skill_source: Path, monkeypatch
+) -> None:
+    filename = "資料-café\n\x1b[2J\x7f\x9b2K.txt"
+    (skill_source / filename).write_text("Safe reference material", encoding="utf-8")
+    description = "Café\nSecond line\x1b]0;spoofed title\x07\x85\x9b2K"
+    source_request = request(skill_source, description=description)
+    args = shlex.split(cli_module._apply_command(source_request, "0" * 64))[3:-1]
+    monkeypatch.chdir(empty_forge)
+
+    result = runner.invoke(app, [*args, "--json"])
+
+    assert result.exit_code == 0, result.output
+    plan = json.loads(result.output)
+    assert plan["review_payload"]["description"] == description
+    assert filename in plan["files"]
+    assert hashlib.sha256(json_bytes(plan["review_payload"])).hexdigest() == plan["plan_sha256"]
+    assert not any(ord(character) < 32 and character != "\n" for character in result.output)
+    assert not any(127 <= ord(character) < 160 for character in result.output)
+
+    text_result = runner.invoke(app, args)
+    assert text_result.exit_code == 0, text_result.output
+    assert "Command preview has escaped control characters" in text_result.output
+    assert diagnostic_value(description) in text_result.output
+    assert not any(ord(character) < 32 and character != "\n" for character in text_result.output)
+    assert not any(127 <= ord(character) < 160 for character in text_result.output)
+
+
+def test_doctor_escapes_human_fields_and_preserves_json_values(
+    empty_forge: Path, monkeypatch
+) -> None:
+    detail = "café\nforged check\x1b[2J\x9b2K"
+    report = {"ready": True, "checks": [{"status": "ok", "name": "path", "detail": detail}]}
+    monkeypatch.setattr(cli_module, "diagnose", lambda repo: report)
+    monkeypatch.chdir(empty_forge)
+
+    human = runner.invoke(app, ["doctor"])
+    structured = runner.invoke(app, ["doctor", "--json"])
+
+    assert human.exit_code == structured.exit_code == 0
+    assert f"OK path: {diagnostic_value(detail)}\n" in human.output
+    assert json.loads(structured.output) == report

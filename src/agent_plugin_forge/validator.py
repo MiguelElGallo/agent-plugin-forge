@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from .common import ForgeError, file_hashes, load_json, tree_hash
+from .errors import diagnostic_value
 from .filesystem import inspect_regular_tree
 from .generator import generation_drift
 from .models import ProvenanceRecord
@@ -23,7 +24,8 @@ def _schema_errors(instance: dict[str, Any], schema: dict[str, Any], label: str)
     validator = Draft202012Validator(schema)
     return [
         f"{label}: "
-        f"{'/'.join(str(part) for part in error.absolute_path) or '<root>'}: {error.message}"
+        f"{diagnostic_value('/'.join(str(part) for part in error.absolute_path) or '<root>')}: "
+        f"{diagnostic_value(error.message)}"
         for error in sorted(
             validator.iter_errors(instance), key=lambda item: list(item.absolute_path)
         )
@@ -54,7 +56,7 @@ def _checksum_errors(root: Path, label: str) -> list[str]:
             continue
         expected, name = match.groups()
         if name in listed:
-            errors.append(f"Duplicate {label} checksum entry: {name}")
+            errors.append(f"Duplicate {label} checksum entry: {diagnostic_value(name)}")
             continue
         listed.add(name)
         try:
@@ -63,7 +65,7 @@ def _checksum_errors(root: Path, label: str) -> list[str]:
             errors.append(f"Invalid {label} checksum entry on line {line_number}: {exc}")
             continue
         if actual != expected:
-            errors.append(f"Vendored {label} checksum mismatch: {name}")
+            errors.append(f"Vendored {label} checksum mismatch: {diagnostic_value(name)}")
     if listed != schema_names:
         errors.append(
             f"Vendored {label} checksum coverage differs: "
@@ -92,7 +94,8 @@ def _provenance_errors(
     except ValidationError as exc:
         return [
             f"Invalid provenance for {skill_name} at "
-            f"{'.'.join(str(part) for part in error['loc']) or '<root>'}: {error['msg']}"
+            f"{diagnostic_value('.'.join(str(part) for part in error['loc']) or '<root>')}: "
+            f"{diagnostic_value(error['msg'])}"
             for error in exc.errors(include_url=False)
         ]
     errors: list[str] = []
@@ -101,9 +104,9 @@ def _provenance_errors(
     relative = PurePosixPath(record.license_evidence.path)
     evidence_path = plugin_root.joinpath(*relative.parts)
     if not evidence_path.is_file() or evidence_path.is_symlink():
-        errors.append(f"License evidence is missing for {skill_name}: {relative}")
+        errors.append(f"License evidence is missing for {skill_name}: {diagnostic_value(relative)}")
     elif hashlib.sha256(evidence_path.read_bytes()).hexdigest() != record.license_evidence.sha256:
-        errors.append(f"License evidence hash drift for {skill_name}: {relative}")
+        errors.append(f"License evidence hash drift for {skill_name}: {diagnostic_value(relative)}")
     if record.files != hashes or record.content_sha256 != tree_hash(hashes):
         errors.append(f"Provenance content hash drift for {skill_name}")
     if modes is not None and record.file_modes != modes:

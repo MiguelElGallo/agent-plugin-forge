@@ -19,7 +19,7 @@ The JSON contains every sample, per-stage medians, Forge and Python versions, an
 
 ### Recorded local result
 
-The current release is `1.0.0`. The measurements below are historical `0.0.2` results; the report and raw data retain the version actually measured and do not claim a new performance result for 1.0.0.
+The current release is `1.0.1`. The measurements below are historical `0.0.2` results; the report and raw data retain the version actually measured and do not claim a new performance result for 1.0.1.
 
 The `0.0.2` candidate was measured on macOS arm64 with Python 3.12.13, using five fresh fixtures per size. The [raw results](../assets/benchmarks/macos-python312-0.0.2.json) retain all samples. Values below are median milliseconds, rounded to the nearest millisecond.
 

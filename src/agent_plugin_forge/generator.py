@@ -7,7 +7,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from .errors import ForgeError
+from .errors import ForgeError, diagnostic_value
 from .filesystem import generated_path_errors
 from .marketplaces import render_marketplaces
 
@@ -64,10 +64,14 @@ def _publish_transactionally(repo: Path, staging: Path, targets: list[Path], bac
                 if backup is not None:
                     os.replace(backup, target)
             except Exception as recovery_error:
-                recovery_errors.append(f"{target.relative_to(repo).as_posix()}: {recovery_error}")
+                recovery_errors.append(
+                    f"{diagnostic_value(target.relative_to(repo).as_posix())}: "
+                    f"{diagnostic_value(recovery_error)}"
+                )
         if recovery_errors:
             raise _GenerationRecoveryError(
-                f"Generation rollback failed; recovery files preserved at {backups.parent}. "
+                f"Generation rollback failed; recovery files preserved at "
+                f"{diagnostic_value(backups.parent)}. "
                 "Inspect the affected outputs and restore any remaining backups "
                 "before regenerating.\n- " + "\n- ".join(recovery_errors)
             ) from publish_error
@@ -109,7 +113,9 @@ def generation_drift(repo: Path) -> list[str]:
         return safety_errors
     for path, expected in rendered.items():
         if not path.is_file() or path.read_bytes() != expected:
-            errors.append(f"Generated marketplace is stale: {path.relative_to(repo)}")
+            errors.append(
+                f"Generated marketplace is stale: {diagnostic_value(path.relative_to(repo))}"
+            )
     if (repo / "compat" / "codex").exists():
         errors.append("Obsolete generated Codex wrapper tree remains at compat/codex")
     return errors

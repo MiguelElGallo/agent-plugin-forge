@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from . import __version__
 from .common import ForgeError, repository_root
 from .doctor import diagnose
+from .errors import diagnostic_value, terminal_text
 from .generator import generate as generate_repository
 from .generator import generation_drift
 from .gitflow import (
@@ -242,19 +243,27 @@ def import_command(
     repo = repository_root()
     plan = apply_import(repo, request) if apply else plan_import(repo, request)
     if json_output:
-        typer.echo(plan.model_dump_json(indent=2))
+        typer.echo(json.dumps(plan.model_dump(mode="json"), indent=2))
         return
     action = "Imported" if apply else "Plan"
     typer.echo(
-        f"{action}: {plan.skill} -> plugins/{plan.plugin}/skills/{plan.skill} "
-        f"({plan.file_count} files, repository {plan.repository_url}, "
+        f"{action}: {diagnostic_value(plan.skill)} -> "
+        f"plugins/{diagnostic_value(plan.plugin)}/skills/{diagnostic_value(plan.skill)} "
+        f"({plan.file_count} files, repository {diagnostic_value(plan.repository_url)}, "
         f"content sha256 {plan.content_sha256}, "
         f"review plan sha256 {plan.plan_sha256})"
     )
     if not apply:
         typer.echo("No files changed. Review the source and obtain approval for this exact plan.")
-        typer.echo(f"After approval, run from {repo} (POSIX shell / Git Bash):")
-        typer.echo(_apply_command(request, plan.plan_sha256))
+        typer.echo(f"After approval, run from {diagnostic_value(repo)} (POSIX shell / Git Bash):")
+        command = _apply_command(request, plan.plan_sha256)
+        safe_command = diagnostic_value(command)
+        if safe_command != command:
+            typer.echo(
+                "Command preview has escaped control characters; use the original request "
+                "values when applying."
+            )
+        typer.echo(safe_command)
 
 
 @app.command("doctor", help="Inspect local prerequisites and checkout readiness without writes.")
@@ -271,7 +280,10 @@ def doctor_command(
     else:
         typer.echo("Forge doctor: local checks only; origin/main is cached, not fetched.")
         for check in report["checks"]:
-            typer.echo(f"{check['status'].upper()} {check['name']}: {check['detail']}")
+            typer.echo(
+                f"{diagnostic_value(check['status'].upper())} "
+                f"{diagnostic_value(check['name'])}: {diagnostic_value(check['detail'])}"
+            )
         typer.echo("Ready to start a branch." if report["ready"] else "Review the issues above.")
     if not report["ready"]:
         raise typer.Exit(code=2)
@@ -313,13 +325,30 @@ def run(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _validation_error_text(error: ValidationError) -> str:
+    """Render validation fields as data within a trusted multiline layout."""
+
+    count = error.error_count()
+    lines = [
+        f"{count} validation error{'s' if count != 1 else ''} for {diagnostic_value(error.title)}"
+    ]
+    for detail in error.errors(include_url=False, include_context=False, include_input=False):
+        location = ".".join(diagnostic_value(part) for part in detail["loc"])
+        lines.append(location or "(root)")
+        lines.append(
+            f"  {diagnostic_value(detail['msg'])} [type={diagnostic_value(detail['type'])}]"
+        )
+    return "\n".join(lines)
+
+
 def main() -> None:
     """Run the CLI entry point and translate expected errors into exit code 2."""
 
     try:
         app(prog_name="forge")
     except (ForgeError, ValidationError) as exc:
-        typer.echo(f"forge: {exc}", err=True)
+        message = _validation_error_text(exc) if isinstance(exc, ValidationError) else str(exc)
+        typer.echo(terminal_text(f"forge: {message}"), err=True)
         raise SystemExit(2) from exc
 
 

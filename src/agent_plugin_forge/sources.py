@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Literal
 
 from .common import parse_skill_frontmatter, tree_hash, validate_name
-from .errors import ForgeError
-from .filesystem import inspect_regular_file, inspect_regular_tree, is_linklike
+from .errors import ForgeError, diagnostic_value
+from .filesystem import FileSnapshot, is_linklike, snapshot_regular_file, snapshot_regular_tree
 
 SourceKind = Literal["skill-directory", "skill-file", "plugin-skill"]
 
@@ -23,6 +23,7 @@ class SkillSource:
     root: Path | None
     skill_md: Path
     files: tuple[Path, ...]
+    snapshots: tuple[FileSnapshot, ...]
 
     def relative_path(self, path: Path) -> str:
         """Return a source file's portable relative path."""
@@ -33,14 +34,17 @@ class SkillSource:
         """Return SHA-256 hashes for every inspected source file."""
 
         return {
-            self.relative_path(path): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in self.files
+            self.relative_path(path): hashlib.sha256(snapshot.content).hexdigest()
+            for path, snapshot in zip(self.files, self.snapshots, strict=True)
         }
 
     def modes(self) -> dict[str, bool]:
         """Return portable executable-bit metadata for every source file."""
 
-        return {self.relative_path(path): bool(path.stat().st_mode & 0o111) for path in self.files}
+        return {
+            self.relative_path(path): snapshot.executable
+            for path, snapshot in zip(self.files, self.snapshots, strict=True)
+        }
 
     def content_sha256(self) -> str:
         """Return the deterministic aggregate hash of the source content."""
@@ -56,18 +60,16 @@ class SkillSource:
 def _directory_source(root: Path, kind: SourceKind) -> SkillSource:
     """Inspect a skill directory and build its immutable source description."""
 
-    files = tuple(
-        inspect_regular_tree(root, required_root_file="SKILL.md", tree_label="Skill source")
-    )
+    captured = snapshot_regular_tree(root, required_root_file="SKILL.md", tree_label="Skill source")
     skill_md = root / "SKILL.md"
-    metadata = parse_skill_frontmatter(skill_md)
+    metadata = parse_skill_frontmatter(skill_md, content=captured[skill_md].content)
     name = str(metadata["name"])
     if root.name != name:
         raise ForgeError(
             f"Source directory {root.name!r} must match SKILL.md name {name!r}; "
             "normalize it in a separate reviewed change"
         )
-    return SkillSource(kind, name, root, skill_md, files)
+    return SkillSource(kind, name, root, skill_md, tuple(captured), tuple(captured.values()))
 
 
 def _plugin_source(root: Path, requested_skill: str | None) -> SkillSource:
@@ -75,7 +77,9 @@ def _plugin_source(root: Path, requested_skill: str | None) -> SkillSource:
 
     skills_root = root / "skills"
     if not skills_root.is_dir() or skills_root.is_symlink():
-        raise ForgeError(f"Existing plugin source has no safe skills/ directory: {root}")
+        raise ForgeError(
+            f"Existing plugin source has no safe skills/ directory: {diagnostic_value(root)}"
+        )
     candidates = sorted(
         path.name for path in skills_root.iterdir() if path.is_dir() and not path.is_symlink()
     )
@@ -98,18 +102,20 @@ def _plugin_source(root: Path, requested_skill: str | None) -> SkillSource:
 def resolve_skill_source(source: Path, requested_skill: str | None = None) -> SkillSource:
     """Resolve the three supported local intake shapes without staging or executing content."""
     if is_linklike(source):
-        raise ForgeError(f"Skill source cannot be a link or junction: {source}")
+        raise ForgeError(f"Skill source cannot be a link or junction: {diagnostic_value(source)}")
     if source.is_file():
         if source.name != "SKILL.md":
             raise ForgeError("A lone skill file must be named SKILL.md")
-        inspect_regular_file(source, file_label="Skill source")
-        metadata = parse_skill_frontmatter(source)
+        captured = snapshot_regular_file(source, file_label="Skill source")
+        metadata = parse_skill_frontmatter(source, content=captured.content)
         name = str(metadata["name"])
         if requested_skill is not None and requested_skill != name:
             raise ForgeError(f"--source-skill {requested_skill!r} does not match {name!r}")
-        return SkillSource("skill-file", name, None, source, (source,))
+        return SkillSource("skill-file", name, None, source, (source,), (captured,))
     if not source.is_dir():
-        raise ForgeError(f"Skill source does not exist or is unsupported: {source}")
+        raise ForgeError(
+            f"Skill source does not exist or is unsupported: {diagnostic_value(source)}"
+        )
     if (source / "SKILL.md").is_file():
         resolved = _directory_source(source, "skill-directory")
         if requested_skill is not None and requested_skill != resolved.name:
