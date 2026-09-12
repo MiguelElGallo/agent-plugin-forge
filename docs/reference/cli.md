@@ -143,12 +143,16 @@ Import adds a new skill destination. It refuses to overwrite an existing `skills
 
 Add `--json` to print only the complete plan as JSON, during either planning or application.
 The output includes the destination, source file hashes and executable modes, license digest,
-and `review_payload`: the exact metadata and destination state bound by `plan_sha256`.
+and `review_payload`: the exact metadata, source file map, and destination state bound by `plan_sha256`.
 For bundles, `review_payload.targetState` includes existing file hashes, executable modes,
 and the catalog entry.
 The default text output remains a short summary.
 
 For a no-write plan, text output also prints a complete apply command for a POSIX shell or Windows Git Bash. It preserves all reviewed import options, absolute source and license paths, the date, and the plan hash. Run it from the reported Forge checkout only after approval. The command is not PowerShell or Command Prompt syntax. `--json` continues to emit only the review artifact, with no command text added.
+
+Human-readable diagnostics escape terminal control characters and undecodable filename bytes in untrusted values, including embedded newlines. Normal Unicode names are preserved. If command options contain controls, the text command is labeled as an escaped preview rather than a copy-ready command; use the original request values when applying. JSON string escapes preserve the original decoded values and do not alter the approved content.
+
+Starting with 1.0.1, the approval payload includes the exact source file map. Generate, review, and approve a fresh plan after upgrading from an older version.
 
 Save the planning output with shell redirection to a file outside the checkout:
 

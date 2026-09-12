@@ -2,7 +2,19 @@
 
 This page records dated client checks. These are qualification observations, not minimum supported versions. Structural conformance is tracked separately in [Standards and Forge policy](standards.md).
 
-## Current release: 1.0.0
+## Current release: 1.0.1
+
+The project, shipped Forge plugin, marketplace, and lockfile use `1.0.1`. This patch addresses two low-severity issues: import approval snapshot consistency and untrusted terminal diagnostics. The packaged skill instructions and bootstrap helper are unchanged from 1.0.0.
+
+The regression suite covers source replacement between inspection and open, mutation during reads, bounded reads, byte-preserving copies, license snapshot hashing, exact file-map approval, CRLF metadata, all C0/DEL/C1 terminal controls, and POSIX surrogateescape output. It checks that ordinary Unicode paths and decoded JSON values remain unchanged. Import plans from older versions require fresh review after upgrade.
+
+On macOS, the 1.0.1 suite passed 386 tests on both Python 3.11.16 and 3.12.13, with two platform-specific skips and 92% coverage. Ruff, ty, Forge validation, generation drift, actionlint, and the strict documentation build passed. Independent patch review identified a non-UTF-8 filename edge case; it was corrected and covered by a regression before the final full-suite runs.
+
+The wheel installed into a fresh Python 3.12 environment and passed version, branch-name, and repository-validation smoke checks. Copilot CLI `1.0.84-1` enabled the 1.0.1 plugin with one skill from an isolated local marketplace. This is local installation evidence, not a fresh remote download or agent publication invocation. VS Code and Codex runtime acceptance was not repeated for this CLI-only patch; the dated 1.0.0 and earlier observations below retain their original scope. The GitHub release records final cross-platform CI and public marketplace read-back.
+
+Initial Windows CI exposed a cross-API file-metadata mismatch. The correction preserves file identity and read-change checks while accounting for CPython's [Windows path-stat timestamp and executable-suffix behavior](https://github.com/python/cpython/blob/v3.12.10/Modules/posixmodule.c#L1894-L2149). The regression suite includes modeled Windows metadata and executable suffixes.
+
+## Previous release: 1.0.0
 
 The project, shipped Forge plugin, marketplace, and lockfile use `1.0.0`. This release removes the built-in publication repository and adds a confirmed destination saved across projects. The [publication guide](../how-to/publish-skill.md) and [destination settings reference](cli.md#remembered-destination) describe first use, reuse, overrides, and replacement of the saved default.
 
@@ -18,7 +30,7 @@ The client commands were checked on 2026-09-12 against local Codex CLI `0.153.4`
 
 The `0.3.0` release passed 257 tests on Python 3.11 and 3.12. A fresh public Copilot CLI `1.0.84-1` installation matched all nine package files from merged revision `2a97c34889aa9fa035b6e1397e799df491cb7562`, and the installed skill completed its check-only workflow without changing files or branches. That evidence is recorded in the [0.3.0 release](https://github.com/MiguelElGallo/agent-plugin-forge/releases/tag/v0.3.0).
 
-Earlier development snapshots also used `0.3.0` and `0.3.1`, as recorded below. After an explicit refresh and update, verify the installed `1.0.0` version and package content.
+Earlier development snapshots also used `0.3.0` and `0.3.1`, as recorded below. After an explicit refresh and update, verify the installed `1.0.1` version and package content.
 
 ## Evidence recorded on 2026-09-11–12
 

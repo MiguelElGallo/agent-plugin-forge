@@ -8,7 +8,7 @@
 
 **Documentation:** [Read the Agent Plugin Forge documentation](https://miguelelgallo.github.io/agent-plugin-forge/).
 
-**Version 1.0.0:** publication destinations are now explicit and can be remembered across projects. Existing users should [refresh and update the Forge](docs/reference/client-installation.md#upgrade-forge-to-100), then start a new chat.
+**Version 1.0.1:** import approvals now bind safety-checked file snapshots, and terminal diagnostics escape control characters in untrusted names. Both fixes address low-severity issues. [Refresh and update the Forge](docs/reference/client-installation.md#upgrade-forge-to-101), then generate and review fresh import plans.
 
 Install the Forge once, choose and remember your publication repository, then give your coding agent a skill and approve its review plan. Forge packages it as a portable [Agent Plugins 1.0](https://agent-plugins.org/) plugin for Visual Studio Code, GitHub Copilot, and Codex.
 

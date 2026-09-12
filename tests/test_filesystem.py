@@ -3,12 +3,44 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from agent_plugin_forge import filesystem
 from agent_plugin_forge.errors import ForgeError
+
+
+def test_windows_identity_normalizes_only_cross_api_metadata(monkeypatch) -> None:
+    metadata = {
+        "st_dev": 7,
+        "st_ino": 42,
+        "st_mode": stat.S_IFREG | 0o666,
+        "st_size": 16,
+        "st_mtime_ns": 200,
+        "st_ctime_ns": 300,
+        "st_birthtime_ns": 100,
+    }
+    descriptor = cast(os.stat_result, SimpleNamespace(**metadata))
+    path_metadata = {**metadata, "st_mode": stat.S_IFREG | 0o777, "st_ctime_ns": 100}
+    path = cast(os.stat_result, SimpleNamespace(**path_metadata))
+    monkeypatch.setattr(filesystem, "os", SimpleNamespace(name="nt"))
+    assert filesystem._file_identity(path) == filesystem._file_identity(descriptor)
+    for field in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_birthtime_ns"):
+        changed = cast(os.stat_result, SimpleNamespace(**{**metadata, field: metadata[field] + 1}))
+        assert filesystem._file_identity(path) != filesystem._file_identity(changed)
+
+
+@pytest.mark.parametrize("suffix", [".txt", ".EXE", ".bat", ".cmd", ".com"])
+def test_snapshot_preserves_platform_executable_convention(tmp_path: Path, suffix: str) -> None:
+    path = tmp_path / f"resource{suffix}"
+    path.write_bytes(b"reviewed")
+    snapshot = filesystem.snapshot_regular_file(path)
+    assert snapshot.content == b"reviewed"
+    assert snapshot.executable == bool(path.stat().st_mode & 0o111)
 
 
 def test_copy_preserves_existing_destination(tmp_path: Path) -> None:
@@ -104,11 +136,87 @@ def test_read_failure_reports_context(tmp_path: Path, monkeypatch) -> None:
     def fail_open(*args, **kwargs):
         raise PermissionError("simulated unreadable file")
 
-    monkeypatch.setattr(Path, "open", fail_open)
+    monkeypatch.setattr(os, "open", fail_open)
     with pytest.raises(ForgeError, match="Cannot read source file"):
         filesystem.inspect_regular_file(path)
-    with pytest.raises(ForgeError, match="Cannot safely inspect source tree"):
+    with pytest.raises(ForgeError, match="Cannot read source file"):
         filesystem.inspect_regular_tree(tmp_path)
+
+
+def test_snapshot_rejects_replacement_between_inspect_and_open(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "source.txt"
+    replacement = tmp_path / "replacement.txt"
+    path.write_bytes(b"reviewed")
+    replacement.write_bytes(b"unreviewed")
+    real_open = os.open
+
+    def replace_then_open(file, flags):
+        replacement.replace(path)
+        return real_open(file, flags)
+
+    monkeypatch.setattr(os, "open", replace_then_open)
+    with pytest.raises(ForgeError, match="changed while opening"):
+        filesystem.snapshot_regular_file(path)
+
+
+def test_snapshot_rejects_modification_during_read(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "source.txt"
+    path.write_bytes(b"reviewed")
+    real_read = os.read
+    changed = False
+
+    def change_during_read(descriptor, size):
+        nonlocal changed
+        if not changed:
+            changed = True
+            path.write_bytes(b"unreviewed bytes")
+        return real_read(descriptor, size)
+
+    monkeypatch.setattr(os, "read", change_during_read)
+    with pytest.raises(ForgeError, match="changed while reading"):
+        filesystem.snapshot_regular_file(path)
+
+
+def test_snapshot_bounds_reads_even_if_the_file_grows(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "source.txt"
+    path.write_bytes(b"a")
+    monkeypatch.setattr(filesystem, "MAX_FILE_BYTES", 8)
+    requested = []
+
+    def growing_read(descriptor, size):
+        requested.append(size)
+        return b"a" * size
+
+    monkeypatch.setattr(os, "read", growing_read)
+    with pytest.raises(ForgeError, match="exceeds"):
+        filesystem.snapshot_regular_file(path)
+    assert sum(requested) == 9
+
+
+def test_snapshot_works_without_optional_open_flags(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "source.txt"
+    path.write_bytes(b"reviewed")
+    for flag in ("O_NOFOLLOW", "O_NONBLOCK"):
+        monkeypatch.delattr(os, flag, raising=False)
+    snapshot = filesystem.snapshot_regular_file(path)
+    assert snapshot.content == b"reviewed"
+
+
+def test_copy_uses_scanned_bytes_after_source_mutation(tmp_path: Path, monkeypatch) -> None:
+    source, target = tmp_path / "source", tmp_path / "target"
+    source.mkdir()
+    path = source / "resource.txt"
+    path.write_bytes(b"reviewed")
+    inspect = filesystem.snapshot_regular_tree
+
+    def change_after_scan(root, **kwargs):
+        snapshot = inspect(root, **kwargs)
+        path.write_bytes(b"unreviewed")
+        return snapshot
+
+    monkeypatch.setattr(filesystem, "snapshot_regular_tree", change_after_scan)
+    filesystem.copy_regular_tree(source, target)
+    assert (target / "resource.txt").read_bytes() == b"reviewed"
 
 
 def test_generated_output_rejects_escape_and_wrong_path_types(tmp_path: Path) -> None:

@@ -21,12 +21,13 @@ from .common import (
     json_bytes,
     load_json,
     parse_semver,
+    tree_hash,
 )
+from .errors import diagnostic_value
 from .filesystem import (
-    MAX_FILE_BYTES,
     copy_regular_tree,
     inspect_regular_file,
-    inspect_regular_tree,
+    snapshot_regular_tree,
 )
 from .models import ImportPlan, ImportRequest
 from .sources import SkillSource, resolve_skill_source
@@ -132,23 +133,21 @@ def _reject_duplicate_skill_destination(
             )
 
 
-def _validate_request_metadata(request: ImportRequest) -> None:
+def _validate_request_metadata(request: ImportRequest) -> bytes:
     """Validate import metadata files before constructing a review plan."""
 
-    content = inspect_regular_file(request.license_file, file_label="License file")
-    if len(content) > MAX_FILE_BYTES:  # pragma: no cover - enforced by inspect_regular_file
-        raise ForgeError(f"License file exceeds {MAX_FILE_BYTES} bytes")
+    return inspect_regular_file(request.license_file, file_label="License file")
 
 
 def _require_available_output(plugin_root: Path, target: Path, *, label: str) -> None:
     """Require a new output path with only safe existing parent directories."""
 
     if target.exists() or target.is_symlink():
-        raise ForgeError(f"{label} already exists: {target}")
+        raise ForgeError(f"{label} already exists: {diagnostic_value(target)}")
     current = target.parent
     while current != plugin_root:
         if current.exists() and (current.is_symlink() or not current.is_dir()):
-            raise ForgeError(f"{label} parent is not a safe directory: {current}")
+            raise ForgeError(f"{label} parent is not a safe directory: {diagnostic_value(current)}")
         current = current.parent
 
 
@@ -157,7 +156,7 @@ def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, 
 
     if not plugin_root.exists():
         return None
-    files = inspect_regular_tree(
+    files = snapshot_regular_tree(
         plugin_root,
         required_root_file="plugin.json",
         tree_label="Destination plugin",
@@ -165,12 +164,12 @@ def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, 
     return {
         "catalogEntry": entry,
         "files": {
-            path.relative_to(plugin_root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in files
+            path.relative_to(plugin_root).as_posix(): hashlib.sha256(snapshot.content).hexdigest()
+            for path, snapshot in files.items()
         },
         "fileModes": {
-            path.relative_to(plugin_root).as_posix(): bool(path.stat().st_mode & 0o111)
-            for path in files
+            path.relative_to(plugin_root).as_posix(): snapshot.executable
+            for path, snapshot in files.items()
         },
     }
 
@@ -178,13 +177,13 @@ def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, 
 def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
     """Create a non-mutating, hash-bound plan for one Agent Skill import."""
 
-    _validate_request_metadata(request)
+    license_content = _validate_request_metadata(request)
     source = resolve_skill_source(request.source, request.source_skill)
     skill = source.name
     plugin_root = contained_child(repo / "plugins", request.plugin, kind="plugin")
     destination = contained_child(plugin_root / "skills", skill, kind="skill")
     if destination.exists():
-        raise ForgeError(f"Destination already exists: {destination}")
+        raise ForgeError(f"Destination already exists: {diagnostic_value(destination)}")
     creates_plugin = not plugin_root.exists()
     license_destination = (
         "LICENSE"
@@ -237,8 +236,8 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
             raise ForgeError("Adding to an existing bundle requires a higher --version")
     hashes = source.hashes()
     file_modes = source.modes()
-    content_sha256 = source.content_sha256()
-    license_sha256 = hashlib.sha256(request.license_file.read_bytes()).hexdigest()
+    content_sha256 = tree_hash(hashes)
+    license_sha256 = hashlib.sha256(license_content).hexdigest()
     repository_url = _forge_repository_url(repo)
     plan_payload = {
         "plugin": request.plugin,
@@ -258,6 +257,7 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         "importedAt": request.imported_at.isoformat(),
         "transformations": list(request.transformations),
         "contentSha256": content_sha256,
+        "files": hashes,
         "fileModes": file_modes,
         "targetState": target_state,
         "repositoryUrl": repository_url,
@@ -297,17 +297,23 @@ def _copy_reviewed_skill(
 ) -> None:
     """Copy a skill only while its reviewed hashes and modes still match."""
 
+    if source.hashes() != expected or source.modes() != expected_modes:
+        raise ForgeError("Reviewed source bytes, paths, or modes changed before apply")
+    captured = {
+        source.relative_path(path): snapshot
+        for path, snapshot in zip(source.files, source.snapshots, strict=True)
+    }
     destination.mkdir(parents=True)
     for relative, expected_hash in sorted(expected.items()):
-        source_file = source.path_for(relative)
-        if source_file.is_symlink() or not source_file.is_file():
-            raise ForgeError(f"Reviewed source changed before apply: {relative}")
-        content = source_file.read_bytes()
+        snapshot = captured[relative]
+        content = snapshot.content
         if hashlib.sha256(content).hexdigest() != expected_hash:
-            raise ForgeError(f"Reviewed source changed before apply: {relative}")
-        executable = bool(source_file.stat().st_mode & 0o111)
+            raise ForgeError(f"Reviewed source changed before apply: {diagnostic_value(relative)}")
+        executable = snapshot.executable
         if executable != expected_modes[relative]:
-            raise ForgeError(f"Reviewed source mode changed before apply: {relative}")
+            raise ForgeError(
+                f"Reviewed source mode changed before apply: {diagnostic_value(relative)}"
+            )
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
@@ -390,7 +396,7 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         staged_skill = staged_plugin / "skills" / plan.skill
         source = resolve_skill_source(request.source, request.source_skill)
         _copy_reviewed_skill(source, staged_skill, plan.files, plan.file_modes)
-        license_content = request.license_file.read_bytes()
+        license_content = inspect_regular_file(request.license_file, file_label="License file")
         if hashlib.sha256(license_content).hexdigest() != plan.license_sha256:
             raise ForgeError("Reviewed license changed before apply")
         license_target = staged_plugin / license_relative
@@ -440,8 +446,9 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
             except Exception as recovery_error:
                 preserve_recovery = True
                 raise ForgeError(
-                    f"Import rollback failed; recovery files preserved at {temporary_root}. "
-                    f"Original plugin backup, if created: {backup}"
+                    f"Import rollback failed; recovery files preserved at "
+                    f"{diagnostic_value(temporary_root)}. "
+                    f"Original plugin backup, if created: {diagnostic_value(backup)}"
                 ) from recovery_error
             # Catalog replacement is the last operation; a failed rename leaves it intact.
             if not plugins_root_existed:

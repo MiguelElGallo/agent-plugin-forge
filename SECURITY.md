@@ -2,7 +2,7 @@
 
 ## Supported version
 
-The latest commit on `main` is supported during the initial `0.x` development line.
+The latest stable `1.x` release and the latest commit on `main` are supported. Upgrade to the latest patch release for security fixes.
 
 ## Reporting
 

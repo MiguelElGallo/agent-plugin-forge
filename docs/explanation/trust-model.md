@@ -18,6 +18,10 @@ Forge's intake and repository-validation gates reject:
 
 The importer plans before writing and binds the full approved plan. It copies content without running scripts or hooks. Generation prepares validated client outputs in a temporary tree before replacing the destination files. Failure tests cover ordinary rollback and preservation of recovery files when restoration itself fails. Keep any reported recovery directory until the repository has been restored; see [rollback recovery](../how-to/troubleshoot.md#marketplace-generation-reports-a-rollback-failure).
 
+File inspection captures bounded bytes through a verified file descriptor and retains executable metadata for that same file. On POSIX, permissions come from the verified file metadata; Windows retains its filename-suffix executable convention. Source metadata, file hashes, the aggregate content digest, and copying use those captured bytes; license hashing uses the bytes that passed inspection. Apply checks a fresh captured source against the reviewed file map before copying it. Changes detected during a file read fail closed. This is not an atomic snapshot of an entire directory tree, and it does not lock source or checkout directories against concurrent writers.
+
+Untrusted values in human-readable diagnostics have terminal controls escaped so filenames cannot clear the screen or inject new diagnostic lines. This display protection does not rename files, change their contents, or establish that imported instructions are safe.
+
 ## Authorization boundary
 
 An initial request to publish starts review only. The installed skill may create a local checkout and plan, but it must stop before applying the plan or changing GitHub state. The user approves the exact plan hash and the proposed fork, push, and pull-request actions. Merge remains separate and requires the reviewed head SHA plus green required checks.

@@ -12,7 +12,7 @@ import yaml
 from license_expression import ExpressionError, get_spdx_licensing
 from semantic_version import Version
 
-from .errors import ForgeError
+from .errors import ForgeError, diagnostic_value
 from .filesystem import file_hashes as _file_hashes
 from .filesystem import inspect_regular_tree
 
@@ -28,9 +28,11 @@ def load_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ForgeError(f"Cannot read JSON from {path}: {exc}") from exc
+        raise ForgeError(
+            f"Cannot read JSON from {diagnostic_value(path)}: {diagnostic_value(exc)}"
+        ) from exc
     if not isinstance(value, dict):
-        raise ForgeError(f"Expected a JSON object in {path}")
+        raise ForgeError(f"Expected a JSON object in {diagnostic_value(path)}")
     return value
 
 
@@ -84,33 +86,41 @@ def validate_spdx_expression(value: object, *, label: str) -> str:
     return value
 
 
-def parse_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
+def parse_skill_frontmatter(skill_md: Path, *, content: bytes | None = None) -> dict[str, Any]:
     """Parse and validate Agent Skill YAML frontmatter and instruction content."""
 
     try:
-        text = skill_md.read_text(encoding="utf-8")
+        text = skill_md.read_text(encoding="utf-8") if content is None else content.decode("utf-8")
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
     except (OSError, UnicodeError) as exc:
-        raise ForgeError(f"Cannot read Agent Skill metadata from {skill_md}: {exc}") from exc
+        raise ForgeError(
+            f"Cannot read Agent Skill metadata from {diagnostic_value(skill_md)}: "
+            f"{diagnostic_value(exc)}"
+        ) from exc
     if not text.startswith("---\n"):
-        raise ForgeError(f"{skill_md} must start with YAML frontmatter")
+        raise ForgeError(f"{diagnostic_value(skill_md)} must start with YAML frontmatter")
     closing = text.find("\n---\n", 4)
     if closing < 0:
-        raise ForgeError(f"{skill_md} has unterminated YAML frontmatter")
+        raise ForgeError(f"{diagnostic_value(skill_md)} has unterminated YAML frontmatter")
     frontmatter = text[4:closing]
     body = text[closing + 5 :]
     try:
         value = yaml.safe_load(frontmatter)
     except yaml.YAMLError as exc:
-        raise ForgeError(f"{skill_md} has invalid YAML frontmatter: {exc}") from exc
+        raise ForgeError(
+            f"{diagnostic_value(skill_md)} has invalid YAML frontmatter: {diagnostic_value(exc)}"
+        ) from exc
     if not isinstance(value, dict):
-        raise ForgeError(f"{skill_md} frontmatter must be a mapping")
+        raise ForgeError(f"{diagnostic_value(skill_md)} frontmatter must be a mapping")
     name = value.get("name")
     description = value.get("description")
     if not isinstance(name, str) or not isinstance(description, str) or not description.strip():
-        raise ForgeError(f"{skill_md} requires string name and non-empty description fields")
+        raise ForgeError(
+            f"{diagnostic_value(skill_md)} requires string name and non-empty description fields"
+        )
     validate_name(name, kind="skill")
     if len(description) > 1024:
-        raise ForgeError(f"{skill_md} description exceeds 1024 characters")
+        raise ForgeError(f"{diagnostic_value(skill_md)} description exceeds 1024 characters")
     allowed_fields = {
         "name",
         "description",
@@ -121,30 +131,38 @@ def parse_skill_frontmatter(skill_md: Path) -> dict[str, Any]:
     }
     unknown = set(value) - allowed_fields
     if unknown:
-        raise ForgeError(f"{skill_md} has unsupported frontmatter fields: {sorted(unknown)}")
+        raise ForgeError(
+            f"{diagnostic_value(skill_md)} has unsupported frontmatter fields: {sorted(unknown)}"
+        )
     license_value = value.get("license")
     if license_value is not None and (
         not isinstance(license_value, str) or not license_value.strip()
     ):
-        raise ForgeError(f"{skill_md} license must be a non-empty string")
+        raise ForgeError(f"{diagnostic_value(skill_md)} license must be a non-empty string")
     compatibility = value.get("compatibility")
     if compatibility is not None and (
         not isinstance(compatibility, str) or not compatibility.strip() or len(compatibility) > 500
     ):
-        raise ForgeError(f"{skill_md} compatibility must be a 1-500 character string")
+        raise ForgeError(
+            f"{diagnostic_value(skill_md)} compatibility must be a 1-500 character string"
+        )
     metadata = value.get("metadata")
     if metadata is not None and (
         not isinstance(metadata, dict)
         or not all(isinstance(key, str) and isinstance(item, str) for key, item in metadata.items())
     ):
-        raise ForgeError(f"{skill_md} metadata must map strings to strings")
+        raise ForgeError(f"{diagnostic_value(skill_md)} metadata must map strings to strings")
     allowed_tools = value.get("allowed-tools")
     if allowed_tools is not None and (
         not isinstance(allowed_tools, str) or not allowed_tools.strip()
     ):
-        raise ForgeError(f"{skill_md} allowed-tools must be a non-empty space-separated string")
+        raise ForgeError(
+            f"{diagnostic_value(skill_md)} allowed-tools must be a non-empty space-separated string"
+        )
     if not body.strip():
-        raise ForgeError(f"{skill_md} needs instruction content after frontmatter")
+        raise ForgeError(
+            f"{diagnostic_value(skill_md)} needs instruction content after frontmatter"
+        )
     return value
 
 

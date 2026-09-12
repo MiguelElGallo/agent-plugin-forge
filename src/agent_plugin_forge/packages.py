@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from .common import contained_child, load_json, parse_skill_frontmatter
-from .errors import ForgeError
+from .errors import ForgeError, diagnostic_value
 from .filesystem import inspect_regular_tree
 from .mcp import load_mcp_configuration
 from .models import Catalog, CatalogPlugin, McpConfiguration, PortableManifest, SseServer
@@ -46,7 +46,9 @@ def load_catalog(repo: Path) -> Catalog:
     except ValidationError as exc:
         first = exc.errors(include_url=False)[0]
         location = ".".join(str(part) for part in first["loc"]) or "<root>"
-        raise ForgeError(f"Invalid catalog at {location}: {first['msg']}") from exc
+        raise ForgeError(
+            f"Invalid catalog at {diagnostic_value(location)}: {diagnostic_value(first['msg'])}"
+        ) from exc
 
 
 def _load_manifest(repo: Path, plugin_root: Path, expected_name: str) -> PortableManifest:
@@ -62,13 +64,19 @@ def _load_manifest(repo: Path, plugin_root: Path, expected_name: str) -> Portabl
     if schema_errors:
         error = schema_errors[0]
         location = ".".join(str(part) for part in error.absolute_path) or "<root>"
-        raise ForgeError(f"Invalid portable manifest {path} at {location}: {error.message}")
+        raise ForgeError(
+            f"Invalid portable manifest {diagnostic_value(path)} at {diagnostic_value(location)}: "
+            f"{diagnostic_value(error.message)}"
+        )
     try:
         manifest = PortableManifest.model_validate(payload)
     except ValidationError as exc:
         first = exc.errors(include_url=False)[0]
         location = ".".join(str(part) for part in first["loc"]) or "<root>"
-        raise ForgeError(f"Invalid portable manifest {path} at {location}: {first['msg']}") from exc
+        raise ForgeError(
+            f"Invalid portable manifest {diagnostic_value(path)} at {diagnostic_value(location)}: "
+            f"{diagnostic_value(first['msg'])}"
+        ) from exc
     if manifest.name != expected_name:
         raise ForgeError(
             f"Catalog name {expected_name!r} does not match manifest name {manifest.name!r}"
@@ -83,7 +91,7 @@ def _skill_roots(plugin_root: Path) -> tuple[Path, ...]:
     if not skills_root.exists():
         return ()
     if not skills_root.is_dir() or skills_root.is_symlink():
-        raise ForgeError(f"skills must be a real directory: {skills_root}")
+        raise ForgeError(f"skills must be a real directory: {diagnostic_value(skills_root)}")
     unexpected = [path.name for path in skills_root.iterdir() if not path.is_dir()]
     if unexpected:
         raise ForgeError(f"skills contains non-directory entries: {sorted(unexpected)}")
@@ -101,7 +109,7 @@ def _skill_roots(plugin_root: Path) -> tuple[Path, ...]:
             )
     for skill_md in skills_root.rglob("SKILL.md"):
         if skill_md.parent.parent != skills_root:
-            raise ForgeError(f"Nested, undiscoverable SKILL.md: {skill_md}")
+            raise ForgeError(f"Nested, undiscoverable SKILL.md: {diagnostic_value(skill_md)}")
     return direct
 
 

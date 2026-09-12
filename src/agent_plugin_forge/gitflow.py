@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from .common import ForgeError, validate_name
+from .errors import diagnostic_value
 
 
 def _git(repo: Path, *args: str, check: bool = True, raw: bool = False) -> str:
@@ -21,7 +22,9 @@ def _git(repo: Path, *args: str, check: bool = True, raw: bool = False) -> str:
     output = os.fsdecode(result.stdout)
     if check and result.returncode:
         detail = os.fsdecode(result.stderr).strip() or output.strip()
-        raise ForgeError(f"git {' '.join(args)} failed: {detail}")
+        raise ForgeError(
+            f"git {diagnostic_value(' '.join(args))} failed: {diagnostic_value(detail)}"
+        )
     return output if raw else output.strip()
 
 
@@ -39,11 +42,13 @@ def _create_branch(repo: Path, branch: str, base: str) -> str:
     local_base = _git(repo, "rev-parse", base)
     remote_base = _git(repo, "rev-parse", "FETCH_HEAD")
     if local_base != remote_base:
-        raise ForgeError(f"Local {base} is not aligned with origin/{base}")
+        raise ForgeError(
+            f"Local {diagnostic_value(base)} is not aligned with origin/{diagnostic_value(base)}"
+        )
     if _git(repo, "show-ref", "--verify", f"refs/heads/{branch}", check=False):
-        raise ForgeError(f"Local branch already exists: {branch}")
+        raise ForgeError(f"Local branch already exists: {diagnostic_value(branch)}")
     if _git(repo, "ls-remote", "--heads", "origin", branch):
-        raise ForgeError(f"Remote branch already exists: {branch}")
+        raise ForgeError(f"Remote branch already exists: {diagnostic_value(branch)}")
     _git(repo, "switch", "-c", branch)
     return branch
 
@@ -141,7 +146,8 @@ def validate_pr_scope(repo: Path, branch: str, base: str) -> list[str]:
         outside = [path for path in changed if path not in exact and not path.startswith(prefixes)]
         if outside:
             raise ForgeError(
-                f"PR changes files outside plugin branch scope {plugin}: {', '.join(outside)}"
+                f"PR changes files outside plugin branch scope {plugin}: "
+                f"{diagnostic_value(', '.join(outside))}"
             )
         return changed
     plugin, skill = validate_skill_branch(branch)
@@ -162,6 +168,7 @@ def validate_pr_scope(repo: Path, branch: str, base: str) -> list[str]:
     outside = [path for path in changed if path not in exact and not path.startswith(prefixes)]
     if outside:
         raise ForgeError(
-            f"PR changes files outside branch scope {plugin}/{skill}: {', '.join(outside)}"
+            f"PR changes files outside branch scope {plugin}/{skill}: "
+            f"{diagnostic_value(', '.join(outside))}"
         )
     return changed
