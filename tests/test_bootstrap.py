@@ -114,6 +114,18 @@ def test_bootstrap_refuses_an_existing_destination(tmp_path: Path) -> None:
     assert "Destination already exists" in result.stderr
 
 
+def test_bootstrap_reuse_requires_an_explicit_destination(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--origin", str(tmp_path / "missing.git"), "--reuse"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "--reuse requires --destination" in result.stderr
+    assert not list(tmp_path.iterdir())
+
+
 def test_bootstrap_rejects_embedded_http_credentials(tmp_path: Path) -> None:
     result = subprocess.run(
         [

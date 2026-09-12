@@ -88,14 +88,16 @@ def test_manifest_identity_cannot_change_generated_paths(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["name"] = "../../escape"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(ForgeError, match="Invalid portable manifest|identity differ"):
+    with pytest.raises(ForgeError, match=r"Invalid portable manifest|identity differ"):
         render_marketplaces(empty_forge)
 
 
+@pytest.mark.parametrize("failure_at", [1, 2, 3, 4])
 def test_generation_rolls_back_every_output_on_publish_failure(
     empty_forge: Path,
     skill_source: Path,
     monkeypatch: pytest.MonkeyPatch,
+    failure_at: int,
 ) -> None:
     apply_reviewed(empty_forge, skill_source)
     generate(empty_forge)
@@ -111,17 +113,97 @@ def test_generation_rolls_back_every_output_on_publish_failure(
     real_replace = generator_module.os.replace
     calls = 0
 
-    def fail_second_output(source: Path, destination: Path) -> None:
+    def fail_publish(source: Path, destination: Path) -> None:
         nonlocal calls
         calls += 1
-        if calls == 4:
+        if calls == failure_at:
             raise OSError("simulated generated-output publish failure")
         real_replace(source, destination)
 
-    monkeypatch.setattr(generator_module.os, "replace", fail_second_output)
+    monkeypatch.setattr(generator_module.os, "replace", fail_publish)
     with pytest.raises(OSError, match="simulated"):
         generate(empty_forge)
     assert {path: path.read_bytes() for path in paths} == before
+    assert not list(empty_forge.glob(".forge-generate-*"))
+
+
+@pytest.mark.parametrize("failure_at", [1, 2])
+def test_generation_removes_new_outputs_after_publish_failure(
+    empty_forge: Path, monkeypatch: pytest.MonkeyPatch, failure_at: int
+) -> None:
+    paths = list(render_marketplaces(empty_forge))
+    real_replace = generator_module.os.replace
+    calls = 0
+
+    def fail_publish(source: Path, destination: Path) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == failure_at:
+            raise OSError("simulated generated-output publish failure")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(generator_module.os, "replace", fail_publish)
+    with pytest.raises(OSError, match="simulated"):
+        generate(empty_forge)
+    assert all(not path.exists() for path in paths)
+    assert not list(empty_forge.glob(".forge-generate-*"))
+
+
+@pytest.mark.parametrize(
+    ("existing_outputs", "recovery_failure"),
+    [(True, "cleanup"), (True, "restore"), (False, "cleanup")],
+)
+def test_failed_generation_rollback_preserves_recovery_and_restores_other_outputs(
+    empty_forge: Path,
+    skill_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing_outputs: bool,
+    recovery_failure: str,
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    if existing_outputs:
+        generate(empty_forge)
+    paths = list(render_marketplaces(empty_forge))
+    before = {path: path.read_bytes() for path in paths if path.exists()}
+    manifest_path = empty_forge / "plugins" / "sample-skill" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = "0.2.0"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    rendered = render_marketplaces(empty_forge)
+    real_replace = generator_module.os.replace
+    real_unlink = Path.unlink
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        if destination == paths[1] and "staging" in source.parts:
+            raise OSError("simulated publish failure")
+        if recovery_failure == "restore" and destination == paths[1] and "backups" in source.parts:
+            raise OSError("simulated restore failure")
+        real_replace(source, destination)
+
+    def fail_unlink(path: Path, missing_ok: bool = False) -> None:
+        if recovery_failure == "cleanup" and path == paths[0]:
+            raise OSError("simulated cleanup failure")
+        real_unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(generator_module.os, "replace", fail_replace)
+    monkeypatch.setattr(Path, "unlink", fail_unlink)
+    with pytest.raises(ForgeError, match="recovery files preserved") as error:
+        generate(empty_forge)
+    recovery_dirs = list(empty_forge.glob(".forge-generate-*"))
+    assert len(recovery_dirs) == 1
+    recovery = recovery_dirs[0]
+    assert str(recovery) in str(error.value)
+    failed_target = paths[0] if recovery_failure == "cleanup" else paths[1]
+    assert failed_target.relative_to(empty_forge).as_posix() in str(error.value)
+    if existing_outputs:
+        backup = recovery / "backups" / failed_target.relative_to(empty_forge)
+        assert backup.read_bytes() == before[failed_target]
+        other_target = next(path for path in paths if path != failed_target)
+        assert other_target.read_bytes() == before[other_target]
+    else:
+        assert paths[0].read_bytes() == rendered[paths[0]]
+        assert not paths[1].exists()
+        assert (recovery / "staging" / paths[1].relative_to(empty_forge)).is_file()
 
 
 def test_drift_rejects_obsolete_codex_wrapper_tree(empty_forge: Path, skill_source: Path) -> None:

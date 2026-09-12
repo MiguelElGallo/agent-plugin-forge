@@ -1,14 +1,14 @@
 {
-  "name": "agent-plugin-forge",
+  "name": "test-forge",
   "interface": {
-    "displayName": "Agent Plugin Forge"
+    "displayName": "Test Forge"
   },
   "plugins": [
     {
-      "name": "agent-plugin-forge",
+      "name": "sample-skill",
       "source": {
         "source": "local",
-        "path": "./plugins/agent-plugin-forge"
+        "path": "./plugins/sample-skill"
       },
       "policy": {
         "installation": "AVAILABLE",

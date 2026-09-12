@@ -2,26 +2,27 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
 from .common import ForgeError, validate_name
 
 
-def _git(repo: Path, *args: str, check: bool = True) -> str:
-    """Run Git in a repository and return normalized standard output."""
+def _git(repo: Path, *args: str, check: bool = True, raw: bool = False) -> str:
+    """Run Git, preserving exact filename bytes when raw output is requested."""
 
     result = subprocess.run(
         ["git", *args],
         cwd=repo,
         check=False,
         capture_output=True,
-        text=True,
     )
+    output = os.fsdecode(result.stdout)
     if check and result.returncode:
-        detail = result.stderr.strip() or result.stdout.strip()
+        detail = os.fsdecode(result.stderr).strip() or output.strip()
         raise ForgeError(f"git {' '.join(args)} failed: {detail}")
-    return result.stdout.strip()
+    return output if raw else output.strip()
 
 
 def _create_branch(repo: Path, branch: str, base: str) -> str:
@@ -117,7 +118,13 @@ def validate_pr_scope(repo: Path, branch: str, base: str) -> list[str]:
         ).returncode
         != 0
     )
-    changed = _git(repo, "diff", "--name-only", f"{base_ref}...HEAD").splitlines()
+    changed = [
+        path
+        for path in _git(
+            repo, "diff", "--no-renames", "--name-only", "-z", f"{base_ref}...HEAD", raw=True
+        ).split("\0")
+        if path
+    ]
     if bootstrap:
         return changed
     if branch.startswith("forge/"):

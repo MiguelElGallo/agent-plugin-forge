@@ -7,6 +7,12 @@ description: Review and publish an Agent Skill through Agent Plugin Forge from a
 
 Use `uv run forge` as the deterministic writer and validator. Portable packages under `plugins/` are authoritative. Do not hand-edit generated marketplaces.
 
+Match the requested scope before starting intake:
+
+- For a check-only request in an existing Forge checkout, inspect the requested content and run `uv run forge generate --check` and `uv run forge check`. Report findings without creating a branch or applying an import. Proceed with fixes when the user requests them.
+- For an existing skill update, read [references/maintain.md](references/maintain.md). `forge import` adds a new skill destination; it cannot overwrite an installed skill tree.
+- For several new skills, plan each separately. Default to separate plugins; add to one bundle only when requested. Each applied plan changes the catalog, so compute the next plan against the resulting checkout.
+
 For Agent Skill publication when the current workspace is not Agent Plugin Forge, read [references/publish.md](references/publish.md) and bootstrap a disposable, current checkout. The user does not need to clone the repository manually. For a mirror, private repository, persistent checkout, or GitHub Enterprise Server, also read [references/private-github.md](references/private-github.md).
 
 ## Intake
@@ -40,6 +46,8 @@ After approval of that exact plan:
 2. Run `uv run forge generate` and `uv run forge check`.
 3. Run `uv run ruff check .`, `uv run ruff format --check .`, `uv run ty check`, `uv run pytest`, and `uv run zensical build --clean --strict`.
 4. Review the complete diff. Commit, push, and open a pull request only when those external actions were included in the approval. Merge only when separately authorized and the exact reviewed head has green required checks.
+
+The renderer's golden tests use fixed synthetic fixtures. A normal skill publication does not update `tests/golden/`; `forge check` verifies the live generated marketplaces.
 
 MCP and other plugin-wide changes are a Forge contributor workflow; they do not use the hash-bound `forge import` plan. Work only inside a Forge checkout, use `uv run forge plugin-branch --plugin NAME --topic TOPIC`, bump the plugin version, review all runtime files and modes, and validate root `mcp.json`. Do not claim the installed two-phase Skill workflow can publish an MCP-only package. Use `forge/<topic>` only for forge tooling, schemas, CI, or documentation.
 

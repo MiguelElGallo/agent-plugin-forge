@@ -22,11 +22,11 @@ Treat the user's initial request to publish as permission to prepare a review, n
 
 1. Inspect the source and license without executing scripts or hooks.
 2. Resolve the destination and provenance fields described in [intake.md](intake.md).
-3. From clean current `main`, create the correctly scoped local branch with `uv run forge branch`, `plugin-branch`, or `maintenance-branch`.
+3. From clean current `main`, create the skill branch with `uv run forge branch --plugin NAME --skill NAME`. Use the contributor workflow for existing-skill, MCP, or Forge maintenance.
 4. Run `uv run forge import` without `--apply`.
 5. Review every source file, executable mode, license byte, destination, and plan field.
 6. Report the checkout, base revision, selected Forge origin, normalized repository URL printed by the Forge CLI, plugin name and version, compatibility, provenance, and 64-character review-plan hash.
-7. Stop and ask the user whether to publish that exact reviewed plan. State that publication will apply the plan, test it, create or reuse their GitHub fork when needed, push the branch, and open a pull request. State separately whether merge is included.
+7. Stop and ask the user whether to publish that exact reviewed plan. State that publication will apply the plan, test it, create or reuse their GitHub fork when needed, push the branch, and open a pull request. Merge requires separate authorization after the pull request's exact head and checks are available.
 
 If the plan or source changes, discard the old approval hash and review a new plan.
 
@@ -39,7 +39,7 @@ Continue only after the user approves the exact plan and the listed external act
 3. Review the complete diff. Do not execute imported code merely to test it.
 4. Commit the reviewed files.
 5. Verify that the selected origin is a GitHub.com or GitHub Enterprise Server repository, then run `gh auth status` for its host. Push directly only when the authenticated account has upstream permission; otherwise create or reuse a writable fork or remote on that host, push there, and open a pull request against the selected Forge origin's `main` branch. Do not run GitHub CLI against a `local` host.
-6. Read back the pull request URL, exact head SHA, and checks. Do not merge unless the user's approval explicitly included merge; before merging, require the same head SHA and green required checks.
+6. Read back the pull request URL, exact head SHA, and checks. Merge only after separate authorization for the reviewed head and green required checks.
 
 After the plugin is merged into the selected marketplace, report its install name. Users who already configured that marketplace can install it with:
 

@@ -17,14 +17,14 @@ def test_lone_source_file_must_be_named_skill_md(tmp_path: Path) -> None:
         "---\nname: sample-skill\ndescription: Sample.\n---\n\nWork.\n",
         encoding="utf-8",
     )
-    with pytest.raises(ForgeError, match="must be named SKILL.md"):
+    with pytest.raises(ForgeError, match=r"must be named SKILL\.md"):
         resolve_skill_source(source)
 
 
 def test_source_directory_must_have_skill_or_plugin_manifest(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
-    with pytest.raises(ForgeError, match="skill directory.*existing plugin"):
+    with pytest.raises(ForgeError, match=r"skill directory.*existing plugin"):
         resolve_skill_source(source)
 
 

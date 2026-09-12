@@ -1,19 +1,19 @@
 {
-  "name": "agent-plugin-forge",
+  "name": "test-forge",
   "owner": {
-    "name": "MiguelElGallo",
-    "email": "miguel.zurcher@gmail.com"
+    "name": "Test",
+    "email": "test@example.com"
   },
   "metadata": {
-    "description": "Reviewed Agent Skills and MCP servers packaged for Agent Plugins 1.0.",
-    "version": "0.0.1"
+    "description": "Test marketplace",
+    "version": "0.1.0"
   },
   "plugins": [
     {
-      "name": "agent-plugin-forge",
-      "description": "Review and publish Agent Skills from any workspace as portable Agent Plugins 1.0 packages.",
-      "version": "0.0.1",
-      "source": "./plugins/agent-plugin-forge"
+      "name": "sample-skill",
+      "description": "A sample plugin",
+      "version": "0.1.0",
+      "source": "./plugins/sample-skill"
     }
   ]
 }

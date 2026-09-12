@@ -78,6 +78,8 @@ The Forge is not tied to GitHub.com or a fixed local path. Codex, Copilot CLI, a
 
 See [Use a private Forge marketplace](https://miguelelgallo.github.io/agent-plugin-forge/how-to/private-marketplace/) for GitHub Enterprise Server, private repositories, mirrors, and persistent checkout setup.
 
+For a team sharing skills from one central repository, follow [Maintain a team skill marketplace](docs/how-to/maintain-team-marketplace.md). It covers repository ownership, review and merge responsibilities, private-origin selection, installation, and the current contributor workflow for changing an existing skill.
+
 ## How the Forge stores packages
 
 - `plugins/` contains the authoritative portable packages.

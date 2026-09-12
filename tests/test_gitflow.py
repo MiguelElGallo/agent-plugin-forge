@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -152,3 +153,64 @@ def test_branch_refuses_unaligned_local_main(tmp_path: Path) -> None:
     git(clone, "push", "origin", "main")
     with pytest.raises(ForgeError, match="not aligned"):
         create_skill_branch(repo, "sample-plugin", "sample-skill")
+
+
+@pytest.fixture
+def scoped_repo(tmp_path: Path) -> Path:
+    repo = initialized_repo(tmp_path)
+    (repo / "pyproject.toml").write_text("[project]\nname='test'\n", encoding="utf-8")
+    git(repo, "add", "pyproject.toml")
+    git(repo, "commit", "-m", "complete bootstrap")
+    git(repo, "push", "origin", "main")
+    return repo
+
+
+@pytest.mark.parametrize(
+    "branch", ["skill/sample-plugin/sample-skill", "plugin/sample-plugin/assets"]
+)
+def test_pr_scope_rejects_rename_from_outside_scope(scoped_repo: Path, branch: str) -> None:
+    git(scoped_repo, "switch", "-c", branch)
+    destination = scoped_repo / "plugins/sample-plugin/skills/sample-skill/README.md"
+    destination.parent.mkdir(parents=True)
+    git(scoped_repo, "mv", "README.md", str(destination))
+    git(scoped_repo, "commit", "-m", "move root document into plugin")
+    with pytest.raises(ForgeError, match=r"outside .*scope.*README\.md"):
+        validate_pr_scope(scoped_repo, branch, "main")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "guía.md",
+        pytest.param(
+            "line\nbreak.md",
+            marks=pytest.mark.skipif(os.name == "nt", reason="Windows forbids newlines in paths"),
+        ),
+        pytest.param(
+            "carriage\rreturn.md",
+            marks=pytest.mark.skipif(os.name == "nt", reason="Windows forbids carriage returns"),
+        ),
+    ],
+)
+def test_pr_scope_preserves_valid_asset_names(scoped_repo: Path, name: str) -> None:
+    branch = "skill/sample-plugin/sample-skill"
+    git(scoped_repo, "switch", "-c", branch)
+    relative = f"plugins/sample-plugin/skills/sample-skill/{name}"
+    path = scoped_repo / relative
+    path.parent.mkdir(parents=True)
+    path.write_text("asset\n", encoding="utf-8")
+    git(scoped_repo, "add", ".")
+    git(scoped_repo, "commit", "-m", "add asset")
+    assert validate_pr_scope(scoped_repo, branch, "main") == [relative]
+
+
+def test_pr_scope_rejects_lookalike_directory_with_leading_space(scoped_repo: Path) -> None:
+    branch = "skill/sample-plugin/sample-skill"
+    git(scoped_repo, "switch", "-c", branch)
+    path = scoped_repo / " plugins/sample-plugin/skills/sample-skill/asset.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("outside scope\n", encoding="utf-8")
+    git(scoped_repo, "add", ".")
+    git(scoped_repo, "commit", "-m", "add lookalike directory")
+    with pytest.raises(ForgeError, match="outside branch scope"):
+        validate_pr_scope(scoped_repo, branch, "main")

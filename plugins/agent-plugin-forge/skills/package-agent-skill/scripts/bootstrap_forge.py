@@ -121,6 +121,8 @@ def _is_link_like(path: Path) -> bool:
 def _destination(value: str | None, *, reuse: bool) -> tuple[Path, bool]:
     """Resolve a new or explicitly reusable checkout destination."""
 
+    if reuse and value is None:
+        raise BootstrapError("--reuse requires --destination")
     if value is None:
         parent = Path(tempfile.mkdtemp(prefix="agent-plugin-forge-review-"))
         return parent / "agent-plugin-forge", False

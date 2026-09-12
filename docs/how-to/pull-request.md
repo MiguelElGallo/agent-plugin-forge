@@ -26,4 +26,4 @@ Review the complete diff, especially imported instructions, executable files, MC
 
 Merge is a separate authorization. Before merging, verify that the PR head SHA still matches the reviewed commit and every required check is green.
 
-The hosted `main` ruleset requires a pull request, green required checks, linear history, and resolved review conversations. It blocks force pushes and deletion. CI has read-only contents permission, receives no pull-request secrets, does not use `pull_request_target`, and never commits generated output.
+Configure the marketplace's `main` ruleset to require a pull request, green required checks, and resolved review conversations, and to block force pushes and deletion. Repository access and branch rules are host settings; copying the Forge files into a private repository does not copy those protections. The included PR workflow has read-only contents permission, receives no pull-request secrets, does not use `pull_request_target`, and never commits generated output. See [team marketplace maintenance](maintain-team-marketplace.md) for the surrounding ownership and release workflow.

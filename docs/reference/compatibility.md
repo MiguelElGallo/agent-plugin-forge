@@ -2,6 +2,29 @@
 
 This page records dated client checks. These are qualification observations, not minimum supported versions. Structural conformance is tracked separately in [Standards and Forge policy](standards.md).
 
+## Current release candidate: 0.3.0
+
+The project, shipped Forge plugin, marketplace, and lockfile now use `0.3.0`. The version change was revalidated with the full local gate on Python 3.11 and 3.12. The recorded benchmarks and client experiments below ran before this version-only change and retain their actual `0.0.2` labels; they are not fresh public `0.3.0` installation evidence.
+
+Earlier development snapshots also used `0.3.0` and `0.3.1`, as recorded below. For a client holding one of those snapshots, confirm the installed repository revision and content after an explicit refresh and reinstall; a matching version string alone does not identify this candidate.
+
+## Evidence recorded on 2026-09-11–12
+
+The local `0.0.2` candidate passed the full suite on macOS with Python 3.11.16 and 3.12.13: 257 tests passed, two platform-specific tests skipped, and coverage reached 92%. Ruff, ty, Forge validation, the strict documentation build, and the built wheel's version and branch-name commands passed.
+
+| Client | Version | Evidence recorded |
+| --- | --- | --- |
+| Visual Studio Code | 1.137.0 (`645f29cc3176500b4b5762ba887cf2a7f0ffdf2c`, arm64) | In a temporary profile, installed a harmless `forge-smoke` plugin from a private GitHub.com repository using **Chat: Install Plugin from Source**. Verified source trust, **Manage** state, Skills discovery, slash-command completion, and an invocation returning `FORGE_SMOKE_OK_20260911`. |
+| GitHub Copilot CLI | 1.0.84-1 | In an isolated client home, installed three new plugins containing four skills from the private GitHub.com fixture, verified installed bytes, and invoked every skill. Refreshed the marketplace and updated only `team-review` from `0.1.0` to `0.1.1`; its runtime marker changed to V2 while all other installed package hashes stayed equal. |
+
+Forge `0.0.2` created the fixture's skill branch, applied the reviewed import hash, generated both marketplaces, and validated the package. The installed cache matched fixture revision `a170e50d5417695c6d0780276ee2aa664adfc8fd`; its skill bytes matched the reviewed source.
+
+The multi-skill installation used fixture revision `796fb8f149f0cbc045f762235206355809e9cffd`; the update used `8985331bed92c8de7de9073476f4f14a8ffb9342`. Private visibility and the final remote revision were read back. The original `forge-smoke` package stayed unchanged.
+
+The shipped skill also passed five local conformance scenarios and an independent existing-skill maintenance walkthrough, including the documented provenance example and full local gates. The [benchmark guide](../how-to/benchmark-skill.md) describes methodology, measured results, and boundaries.
+
+This qualifies private GitHub.com fixture installation and skill invocation, plus the recorded local contributor workflows. It does not qualify a fresh public `0.0.2` release installation, the complete installed Forge publication journey, GitHub Enterprise Server authentication, executable MCP or hook behavior, or Linux/Windows execution for this candidate.
+
 ## Evidence recorded on 2026-09-07
 
 The project, shipped Forge plugin, and marketplace version are reset to `0.0.1`. This is an intentional version reset from the earlier `0.3.x` numbering. The historical installation evidence below retains its original versions; it does not qualify a fresh `0.0.1` client installation. Clients may not offer a lower version as an automatic update, so verify the installed version after explicitly selecting the reset release.

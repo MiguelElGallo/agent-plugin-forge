@@ -41,7 +41,7 @@ def request(source: Path, **overrides: object) -> ImportRequest:
         "imported_at": "2026-08-21",
     }
     values.update(overrides)
-    return ImportRequest(**values)  # type: ignore[arg-type]
+    return ImportRequest.model_validate(values)
 
 
 def apply_reviewed(repo: Path, source: Path, **overrides: object):

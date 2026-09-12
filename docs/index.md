@@ -1,6 +1,6 @@
 # Agent Plugin Forge
 
-Agent Plugin Forge has three user journeys. Choose the one that matches what you want to do.
+Choose the workflow that matches what you want to do.
 
 | What you want to do | Start here |
 | --- | --- |
@@ -8,6 +8,7 @@ Agent Plugin Forge has three user journeys. Choose the one that matches what you
 | Publish an existing skill | [Publish a skill with your agent](how-to/publish-skill.md) |
 | Install a plugin already in the marketplace | [Install a published plugin](tutorials/install-published-plugin.md) |
 | Develop Forge or package an MCP server | [Prepare a development checkout](tutorials/prepare-vscode.md) |
+| Share and maintain skills in a private team repository | [Maintain a team skill marketplace](how-to/maintain-team-marketplace.md) |
 | Resolve an installation or import error | [Troubleshooting](how-to/troubleshoot.md) |
 
 ## 1. Install Agent Plugin Forge
@@ -49,6 +50,8 @@ After the pull request is merged, users refresh the configured marketplace and i
 Private GitHub repositories and GitHub Enterprise Server use the same reviewed publication workflow and can keep a persistent checkout in another local directory. Mirrors and other Git hosts support installation and review, but automated pull-request publication requires GitHub.com or GitHub Enterprise Server. Configure the selected Git marketplace source once, then give the agent that Forge origin when publishing.
 
 [Use a private Forge marketplace →](how-to/private-marketplace.md)
+
+For ownership, review responsibilities, existing-skill maintenance, and team rollout, follow [Maintain a team skill marketplace](how-to/maintain-team-marketplace.md).
 
 ## Maintainers and contributors
 

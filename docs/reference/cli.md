@@ -6,8 +6,11 @@ Typer generates command and option help from the CLI's Python type annotations:
 
 ```bash
 uv run forge --help
+uv run forge --version
 uv run forge import --help
 ```
+
+`forge --version` prints the installed package version and works outside a Forge checkout when the `forge` executable is on your path.
 
 It also provides shell-completion helpers:
 
@@ -82,7 +85,7 @@ uv run forge branch-name --branch BRANCH
 
 ## `forge pr-scope`
 
-Compares `origin/<base>...HEAD` with the scope encoded in the branch. Pull requests must target `main`.
+Compares `origin/<base>...HEAD` with the scope encoded in the branch. Pull requests must target `main`. Renames are checked as both a removal and an addition, so moving a file into the permitted directory does not hide an out-of-scope removal. Filename whitespace, Unicode, and line breaks are preserved during scope validation.
 
 ```bash
 uv run forge pr-scope --branch BRANCH --base main
