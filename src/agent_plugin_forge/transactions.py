@@ -100,7 +100,7 @@ class ReplacementTransaction:
                     _restore(replacement, had_original)
                 except BaseException as recovery_error:
                     recovery_errors.append(
-                        f"{diagnostic_value(replacement.target)}: "
+                        f"{diagnostic_value(replacement.target.as_posix())}: "
                         f"{type(recovery_error).__name__}: {diagnostic_value(recovery_error)}"
                     )
             if recovery_errors:
