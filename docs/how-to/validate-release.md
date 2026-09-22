@@ -1,6 +1,6 @@
 # Validate and release the forge
 
-The `Check` workflow runs the repository gate on pull requests and pushes to `main`. Unit and integration tests run on Linux, macOS, and Windows. CI also builds the Python distributions, installs the wheel into an isolated environment, and smoke-tests the installed CLI. Third-party actions are pinned to full commits.
+The `Check` workflow runs the repository gate on pull requests and pushes to `main`. Unit and integration tests run on Linux, macOS, and Windows. On each platform with Python 3.12, CI also builds the Python distributions, installs the wheel into an isolated environment, and smoke-tests the installed import and update workflow. Third-party actions are pinned to full commits.
 
 ## Local release gate
 
@@ -19,7 +19,9 @@ uv run python scripts/smoke_wheel.py
 
 Pydantic owns forge-specific catalog, provenance, marketplace, and MCP semantic contracts. Vendored JSON Schema remains authoritative for Agent Plugins `plugin.json` and `mcp.json`. Schema bytes are pinned by complete checksums for offline validation.
 
-The default `ty check` scope includes the CLI, tests, benchmarks, Forge's explicitly listed bootstrap helper, examples, and repository scripts. Imported plugins are outside this scope and retain their own runtime dependencies. The wheel smoke check exercises the installed package outside the source checkout so editable installation cannot hide missing distribution files. These packaging checks complement client acceptance below.
+The default `ty check` scope includes the CLI, tests, benchmarks, Forge's explicitly listed bootstrap helper, examples, and repository scripts. Imported plugins are outside this scope and retain their own runtime dependencies.
+
+The wheel smoke check builds the wheel from the source distribution and installs it outside the source checkout. In a disposable Forge checkout with a local Git origin, the installed CLI creates review branches, imports two authored skills into one plugin, and updates one skill after reviewing its exact plan and `--diff` preview. It checks added, removed, changed, and executable files, rejects incorrect hashes and plans made stale by source changes without altering the checkout, and validates generated marketplaces and refreshed provenance. The companion skill, shared license, MCP files, assets, and empty working directory must survive unchanged. Fixture scripts and MCP servers are never executed. These packaging checks complement client acceptance below.
 
 When updating Python libraries, review their supported Python versions and migration notes, update `pyproject.toml`, and run `uv lock --upgrade` followed by the local gate. The project supports Python 3.11 and later; CI also tests the minimum version. Subprocess coverage uses `[tool.coverage.run] patch = ["subprocess"]`, as required by [pytest-cov 7](https://pytest-cov.readthedocs.io/en/latest/subprocess-support.html).
 

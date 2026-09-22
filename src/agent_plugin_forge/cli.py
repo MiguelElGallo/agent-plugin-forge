@@ -35,6 +35,7 @@ from .importer import (
     plan_update,
 )
 from .models import ImportPlan
+from .preview import render_update_diff
 from .sources import resolve_skill_source
 from .validator import assert_valid_repository
 
@@ -281,9 +282,14 @@ def update_command(
     json_output: Annotated[
         bool, typer.Option("--json", help="Print the complete review plan as JSON only.")
     ] = False,
+    diff_output: Annotated[
+        bool, typer.Option("--diff", help="Preview verified text, license, and executable changes.")
+    ] = False,
 ) -> None:
     """Review an existing skill replacement before applying its exact approved plan."""
 
+    if diff_output and (apply or json_output):
+        raise typer.BadParameter("--diff is for text planning only; omit --apply and --json")
     request = _import_request(
         source=source,
         source_skill=source_skill,
@@ -303,11 +309,18 @@ def update_command(
     )
     repo = repository_root()
     plan = apply_update(repo, request) if apply else plan_update(repo, request)
-    _print_plan(repo, request, plan, applied=apply, json_output=json_output)
+    preview = render_update_diff(repo, request, plan) if diff_output else None
+    _print_plan(repo, request, plan, applied=apply, json_output=json_output, preview=preview)
 
 
 def _print_plan(
-    repo: Path, request: ImportRequest, plan: ImportPlan, *, applied: bool, json_output: bool
+    repo: Path,
+    request: ImportRequest,
+    plan: ImportPlan,
+    *,
+    applied: bool,
+    json_output: bool,
+    preview: str | None = None,
 ) -> None:
     """Render a complete JSON artifact or a readable summary and exact apply command."""
 
@@ -337,6 +350,8 @@ def _print_plan(
             f"License evidence ({metadata['licenseAction']}): "
             f"{diagnostic_value(plan.license_destination)}; shared evidence is preserved."
         )
+    if preview is not None:
+        typer.echo(preview, nl=False)
     if not applied:
         typer.echo("No files changed. Review the source and obtain approval for this exact plan.")
         typer.echo(f"After approval, run from {diagnostic_value(repo)} (POSIX shell / Git Bash):")

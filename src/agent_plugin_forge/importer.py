@@ -28,6 +28,7 @@ from .common import (
 )
 from .errors import diagnostic_value
 from .filesystem import (
+    FileSnapshot,
     copy_regular_tree,
     inspect_regular_file,
     is_linklike,
@@ -185,16 +186,22 @@ def _directory_names(root: Path) -> list[str]:
     return sorted(directories)
 
 
-def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Capture the current destination package state for plan binding."""
+def _target_state(
+    plugin_root: Path,
+    entry: dict[str, Any] | None,
+    *,
+    files: dict[Path, FileSnapshot] | None = None,
+) -> dict[str, Any] | None:
+    """Bind destination state, optionally using an already captured file snapshot."""
 
     if not plugin_root.exists():
         return None
-    files = snapshot_regular_tree(
-        plugin_root,
-        required_root_file="plugin.json",
-        tree_label="Destination plugin",
-    )
+    if files is None:
+        files = snapshot_regular_tree(
+            plugin_root,
+            required_root_file="plugin.json",
+            tree_label="Destination plugin",
+        )
     return {
         "catalogEntry": entry,
         "directories": _directory_names(plugin_root),

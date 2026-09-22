@@ -34,8 +34,6 @@ jobs:
         run: uv run forge pr-scope --branch "$PR_BRANCH" --base "$PR_BASE"
       - run: uv run forge check
       - run: uv run zensical build --clean --strict
-      - name: Build and smoke-test the installed distribution
-        run: uv run python scripts/smoke_wheel.py
 
   tests:
     name: tests (${{ matrix.os }}${{ matrix.suffix }})
@@ -59,3 +57,6 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run pytest
+      - name: Build and smoke-test the installed import and update workflow
+        if: matrix.python == '3.12'
+        run: uv run python scripts/smoke_wheel.py

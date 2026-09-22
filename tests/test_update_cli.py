@@ -6,8 +6,10 @@ import json
 import shlex
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
+import agent_plugin_forge.cli as cli_module
 from agent_plugin_forge.cli import app
 from agent_plugin_forge.common import load_json
 from agent_plugin_forge.filesystem import tree_snapshot
@@ -114,3 +116,71 @@ def test_update_does_not_expose_shared_metadata_options():
     result = runner.invoke(app, ["update", "--author", "Someone"])
     assert result.exit_code == 2
     assert "No such option" in result.output
+
+
+def test_update_diff_is_read_only_and_replays_the_same_approved_plan(
+    empty_forge: Path, skill_source: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    (skill_source / "reference.txt").write_bytes(b"Reviewed replacement.\n")
+    license_file = skill_source.parent / "LICENSE"
+    license_file.write_bytes(b"Revised license evidence.\n")
+    monkeypatch.chdir(empty_forge)
+    arguments = update_arguments(skill_source, license_file)
+    planned = runner.invoke(app, [*arguments, "--json"])
+    assert planned.exit_code == 0, planned.output
+    plan = json.loads(planned.output)
+    before = tree_snapshot(empty_forge)
+
+    result = runner.invoke(app, [*arguments, "--diff"])
+
+    assert result.exit_code == 0, result.output
+    assert "-evidence" in result.output
+    assert "+Reviewed replacement." in result.output
+    assert "+Revised license evidence." in result.output
+    assert plan["plan_sha256"] in result.output
+    assert tree_snapshot(empty_forge) == before
+    command = shlex.split(result.output.splitlines()[-1])
+    assert "--diff" not in command
+    applied = runner.invoke(app, command[3:])
+    assert applied.exit_code == 0, applied.output
+
+
+@pytest.mark.parametrize("conflict", ["--json", "--apply"])
+def test_update_diff_rejects_conflicting_modes_before_reading_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, conflict: str
+) -> None:
+    def unexpected_request(**kwargs):
+        pytest.fail("Conflicting --diff flags must be refused before inspecting source")
+
+    monkeypatch.setattr(cli_module, "_import_request", unexpected_request)
+    arguments = update_arguments(tmp_path / "missing", tmp_path / "LICENSE")
+
+    result = runner.invoke(app, [*arguments, "--diff", conflict])
+
+    assert result.exit_code == 2
+    assert "--diff is for text planning only" in plain_output(result.output)
+
+
+def test_update_diff_drift_does_not_print_partial_plan_or_apply_command(
+    empty_forge: Path, skill_source: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    monkeypatch.chdir(empty_forge)
+    arguments = update_arguments(skill_source, skill_source.parent / "LICENSE")
+    real_plan = cli_module.plan_update
+
+    def plan_then_mutate(repo, request):
+        plan = real_plan(repo, request)
+        (skill_source / "reference.txt").write_bytes(b"Unreviewed source edit.\n")
+        return plan
+
+    monkeypatch.setattr(cli_module, "plan_update", plan_then_mutate)
+    before = tree_snapshot(empty_forge)
+
+    result = runner.invoke(app, [*arguments, "--diff"])
+
+    assert result.exit_code != 0
+    assert result.stdout == ""
+    assert "Source changed after planning" in str(result.exception)
+    assert tree_snapshot(empty_forge) == before

@@ -179,7 +179,7 @@ until the original plugin has been restored and the repository validated.
 
 Plans the replacement of one existing skill from a reviewed local source. It accepts the same three source shapes as `forge import`; the selected source skill's name must match an existing skill in the destination plugin, with valid current provenance.
 
-Required options are `--source`, `--plugin`, `--version`, `--license`, `--license-file`, `--origin`, and `--revision`. The version must be strictly higher than the current plugin version. Optional source and review options are `--source-skill`, `--source-subpath`, `--imported-at`, `--transformation`, `--expected-sha256`, `--apply`, and `--json`. Origin and immutable-revision rules are the same as for import.
+Required options are `--source`, `--plugin`, `--version`, `--license`, `--license-file`, `--origin`, and `--revision`. The version must be strictly higher than the current plugin version. Optional source and review options are `--source-skill`, `--source-subpath`, `--imported-at`, `--transformation`, `--expected-sha256`, `--apply`, `--json`, and `--diff`. Origin and immutable-revision rules are the same as for import.
 
 For example, after staging and reviewing a committed revision of an existing `incident-summary` skill:
 
@@ -199,6 +199,16 @@ uv run forge update \
 Replace the paths, source identity, license, and version with the reviewed values. Verify that the staged files match the declared commit; Forge records this declaration and does not fetch or compare the upstream revision. See the [maintenance workflow](../how-to/maintain-team-marketplace.md#maintain-existing-skills) for the full review process.
 
 Planning writes nothing. The plan identifies `operation: "update"`, the old and new versions, added, removed, modified, and mode-changed skill files, and the provenance and license destinations. Its hash binds the complete source snapshot, license, metadata, catalog, and current destination package, including empty directory paths. Inspect every changed instruction, helper, asset, and removal before approving that hash.
+
+Add `--diff` to a planning command to preview unified text diffs, executable-mode changes, and a comparison of the previous and proposed license evidence. The preview uses snapshots verified against the plan and leaves its hash unchanged. If the captured source, license, destination, catalog, or Forge origin differs from the plan, Forge refuses the preview instead of printing an apply command. The license comparison does not imply deletion of the previous evidence path.
+
+```bash
+uv run forge update [UPDATE_OPTIONS] --diff
+```
+
+The preview escapes terminal control characters, shows CRLF endings as `\r`, and marks missing final newlines. Binary or non-UTF-8 files receive a size and SHA-256 summary. Text comparisons are limited to 64 KiB and 1,000 lines per file side, 1 MiB of combined input across comparisons, and 131,072 characters of preview output. Omitted content is explicitly identified; review those full files before approving. An unchanged file needs no text comparison.
+
+`--diff` is available only for text planning, so it cannot be combined with `--json` or `--apply`. The printed apply command omits `--diff` and retains the exact reviewed hash. Use a separate `--json` invocation when saving the review artifact.
 
 After approval, repeat the same command with `--apply --expected-sha256 HASH`, preserving the original `--imported-at` date when continuing on another day. Apply requires the matching `skill/<plugin>/<skill>` branch. Save a JSON plan outside the checkout when review will continue later; like import, the saved JSON is a review artifact, not an apply input. Changed inputs require a fresh review and approval.
 
