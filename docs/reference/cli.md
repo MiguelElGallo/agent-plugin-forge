@@ -200,13 +200,15 @@ Replace the paths, source identity, license, and version with the reviewed value
 
 Planning writes nothing. The plan identifies `operation: "update"`, the old and new versions, added, removed, modified, and mode-changed skill files, and the provenance and license destinations. Its hash binds the complete source snapshot, license, metadata, catalog, and current destination package, including empty directory paths. Inspect every changed instruction, helper, asset, and removal before approving that hash.
 
-Add `--diff` to a planning command to preview unified text diffs, executable-mode changes, and a comparison of the previous and proposed license evidence. The preview uses snapshots verified against the plan and leaves its hash unchanged. If the captured source, license, destination, catalog, or Forge origin differs from the plan, Forge refuses the preview instead of printing an apply command. The license comparison does not imply deletion of the previous evidence path.
+Add `--diff` to a planning command to preview unified text diffs, executable-mode changes, provenance metadata changes, and a comparison of the previous and proposed license evidence. The provenance comparison shows `origin`, `revision`, `sourceSubpath`, `importedAt`, and `transformations`, including updates that leave skill files unchanged. Its previous values come from the verified installed record; its proposed values come from the plan's `review_payload`. Comparison hashes describe these selected metadata fields, not the complete provenance file.
+
+The preview uses snapshots verified against the plan and leaves its hash unchanged. If the captured source, license, destination, catalog, or Forge origin differs from the plan, Forge refuses the preview instead of printing an apply command. The license comparison does not imply deletion of the previous evidence path.
 
 ```bash
 uv run forge update [UPDATE_OPTIONS] --diff
 ```
 
-The preview escapes terminal control characters, shows CRLF endings as `\r`, and marks missing final newlines. Binary or non-UTF-8 files receive a size and SHA-256 summary. Text comparisons are limited to 64 KiB and 1,000 lines per file side, 1 MiB of combined input across comparisons, and 131,072 characters of preview output. Omitted content is explicitly identified; review those full files before approving. An unchanged file needs no text comparison.
+The preview escapes terminal control characters, shows CRLF endings as `\r`, and marks missing final newlines. Binary or non-UTF-8 files receive a size and SHA-256 summary. Text comparisons, including provenance metadata, are limited to 64 KiB and 1,000 lines per file side, 1 MiB of combined input across comparisons, and 131,072 characters of preview output. Omitted content is explicitly identified; review those full files before approving. For omitted provenance metadata, compare the installed `provenance/<skill>.json` with the proposed values in a separate `--json` plan's `review_payload`. An unchanged file needs no text comparison.
 
 `--diff` is available only for text planning, so it cannot be combined with `--json` or `--apply`. The printed apply command omits `--diff` and retains the exact reviewed hash. Use a separate `--json` invocation when saving the review artifact.
 

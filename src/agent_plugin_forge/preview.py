@@ -7,7 +7,7 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from .common import contained_child
+from .common import contained_child, json_bytes
 from .errors import ForgeError, diagnostic_value
 from .filesystem import FileSnapshot, snapshot_regular_file, snapshot_regular_tree
 from .importer import _forge_repository_url, _read_catalog, _target_state
@@ -89,6 +89,24 @@ def _capture_differences(repo: Path, request: ImportRequest, plan: ImportPlan) -
     ]
     record = ProvenanceRecord.model_validate_json(
         _captured_file(installed, f"provenance/{plan.skill}.json").content
+    )
+    metadata_fields = ("origin", "revision", "sourceSubpath", "importedAt", "transformations")
+    previous_metadata = record.model_dump(mode="json", by_alias=True)
+    metadata_path = f"provenance/{plan.skill}.json (selected metadata fields)"
+    differences.insert(
+        0,
+        _Difference(
+            title="Provenance metadata comparison (previous record -> proposed record)",
+            before_path=metadata_path,
+            after_path=metadata_path,
+            before=FileSnapshot(
+                json_bytes({field: previous_metadata[field] for field in metadata_fields}), False
+            ),
+            after=FileSnapshot(
+                json_bytes({field: plan.review_payload[field] for field in metadata_fields}), False
+            ),
+            show_modes=False,
+        ),
     )
     previous_license = _captured_file(installed, record.license_evidence.path)
     if _digest(previous_license.content) != record.license_evidence.sha256:
@@ -196,7 +214,7 @@ def render_update_diff(repo: Path, request: ImportRequest, plan: ImportPlan) -> 
         if len(output) + len(rendered) > MAX_DIFF_OUTPUT_CHARS - 200:
             output += (
                 f"\nDiff output limit reached: {len(differences) - index} comparisons omitted. "
-                "Review the full files and license before approving.\n"
+                "Review the full files, provenance metadata, and license before approving.\n"
             )
             break
         output += rendered

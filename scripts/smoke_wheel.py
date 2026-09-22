@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
+import platform
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -320,9 +323,201 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
         raise RuntimeError("The update did not refresh the reviewed provenance and license bytes.")
 
 
-def main() -> None:
-    """Build through the source distribution and smoke-test an isolated wheel install."""
+def archive_hashes(archives: list[Path]) -> dict[str, str]:
+    """Hash the archive bytes built for and installed during qualification."""
 
+    return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in archives}
+
+
+def is_linklike(path: Path) -> bool:
+    """Reject symbolic links and Windows reparse points without following their targets."""
+
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISLNK(metadata.st_mode) or bool(
+        getattr(metadata, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    )
+
+
+def source_state(repo: Path, env: dict[str, str]) -> dict[str, Any]:
+    """Bind Git identity and dirtiness to visible source bytes, modes, and deletions."""
+
+    def git(*arguments: str) -> str:
+        """Read the actual checkout independently of inherited Git overrides."""
+
+        git_env = {key: value for key, value in env.items() if not key.startswith("GIT_")}
+        return run(["git", *arguments], cwd=repo, env=git_env).stdout
+
+    commit = git("rev-parse", "HEAD").strip()
+    status = git("status", "--porcelain=v1", "-z", "--untracked-files=all")
+    paths = git("ls-files", "--cached", "--others", "--exclude-standard", "-z")
+    files: dict[str, Any] = {}
+    for relative in sorted(set(paths.rstrip("\0").split("\0")) - {""}):
+        path = repo / relative
+        if any(is_linklike(parent) for parent in (path, *path.parents)):
+            raise RuntimeError(
+                f"Cannot bind source through a symlink or reparse point: {relative!r}"
+            )
+        try:
+            mode = path.lstat().st_mode
+        except FileNotFoundError:
+            files[relative] = None
+            continue
+        if not stat.S_ISREG(mode):
+            raise RuntimeError(f"Cannot bind a non-regular source file: {relative!r}")
+        files[relative] = {
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "executable": bool(mode & 0o111),
+        }
+    return {
+        "commit": commit,
+        "dirty": bool(status),
+        "status_porcelain_v1": status.rstrip("\0").split("\0") if status else [],
+        "tree_sha256": hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(),
+        "tree_scope": "Git tracked and unignored untracked file paths, bytes, and executable flags",
+    }
+
+
+def output_destination(value: Path) -> Path:
+    """Require a fresh output path beneath an existing parent without symlink components."""
+
+    destination = Path(os.path.abspath(value))
+    if any(is_linklike(path) for path in (destination, *destination.parents)):
+        raise RuntimeError("The retained output path must not contain symlinks or reparse points.")
+    if destination.exists():
+        raise RuntimeError(f"The retained output path already exists: {destination}")
+    if not destination.parent.is_dir():
+        raise RuntimeError("The retained output parent must be an existing directory.")
+    return destination
+
+
+def retain_archives(
+    destination: Path,
+    archives: list[Path],
+    hashes: dict[str, str],
+    source: dict[str, Any],
+    env: dict[str, str],
+) -> None:
+    """Export verified archive bytes and their smoke report only after all checks pass."""
+
+    destination = output_destination(destination)
+    with tempfile.TemporaryDirectory(prefix=".forge-release-", dir=destination.parent) as directory:
+        staged = Path(directory) / "artifacts"
+        staged.mkdir()
+        for archive in archives:
+            content = archive.read_bytes()
+            if hashlib.sha256(content).hexdigest() != hashes[archive.name]:
+                raise RuntimeError(f"Tested archive changed before retention: {archive.name}")
+            (staged / archive.name).write_bytes(content)
+        checksums = "".join(f"{value}  {name}\n" for name, value in sorted(hashes.items()))
+        (staged / "SHA256SUMS").write_text(checksums, encoding="utf-8", newline="\n")
+        report = {
+            "schema_version": 1,
+            "smoke_passed": True,
+            "source": source,
+            "archives": hashes,
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "ci": {
+                key: env[key]
+                for key in (
+                    "GITHUB_REPOSITORY",
+                    "GITHUB_REF",
+                    "GITHUB_SHA",
+                    "GITHUB_RUN_ID",
+                    "GITHUB_RUN_ATTEMPT",
+                    "FORGE_PR_HEAD_SHA",
+                )
+                if env.get(key)
+            },
+        }
+        (staged / "smoke-report.json").write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+        )
+        # Reserve without replacement before moving files; failed exports remove only our directory.
+        output_destination(destination)
+        destination.mkdir()
+        try:
+            names = [archive.name for archive in archives] + ["SHA256SUMS", "smoke-report.json"]
+            # A hard interruption can leave an incomplete directory, but never a success report
+            # ahead of the archives and their checksums.
+            for name in names:
+                (staged / name).replace(destination / name)
+        except BaseException:
+            shutil.rmtree(destination)
+            raise
+
+
+def build_and_smoke(
+    repo: Path, temporary: Path, uv: str, env: dict[str, str]
+) -> tuple[list[Path], dict[str, str]]:
+    """Build through an sdist and qualify the wheel's isolated installed workflow."""
+
+    distributions = temporary / "dist"
+    # uv build creates an sdist, then builds the wheel from that sdist.
+    run([uv, "build", "--out-dir", str(distributions)], cwd=repo, env=env)
+    wheels = list(distributions.glob("*.whl"))
+    sources = list(distributions.glob("*.tar.gz"))
+    if len(wheels) != 1 or len(sources) != 1:
+        raise RuntimeError("Expected exactly one wheel and one source distribution.")
+    archives = [wheels[0], sources[0]]
+    hashes = archive_hashes(archives)
+    environment = temporary / "environment"
+    run([uv, "venv", "--python", sys.executable, str(environment)], cwd=temporary, env=env)
+    binaries = environment / ("Scripts" if os.name == "nt" else "bin")
+    python = binaries / ("python.exe" if os.name == "nt" else "python")
+    forge = binaries / ("forge.exe" if os.name == "nt" else "forge")
+    run(
+        [uv, "pip", "install", "--python", str(python), str(wheels[0])],
+        cwd=temporary,
+        env=env,
+    )
+    probe = run(
+        [
+            str(python),
+            "-I",
+            "-c",
+            "import json, sys, agent_plugin_forge; "
+            "print(json.dumps([sys.prefix, agent_plugin_forge.__file__]))",
+        ],
+        cwd=temporary,
+        env=env,
+    )
+    prefix, module = (Path(value).resolve() for value in json.loads(probe.stdout))
+    if prefix != environment or not module.is_relative_to(environment):
+        raise RuntimeError(f"Forge was not imported from the isolated environment: {module}")
+    if "site-packages" not in module.parts:
+        raise RuntimeError(f"Forge was not loaded from installed site-packages: {module}")
+    metadata = tomllib.loads((repo / "pyproject.toml").read_text(encoding="utf-8"))
+    version = run([str(forge), "--version"], cwd=temporary, env=env)
+    if version.stdout.strip() != f"agent-plugin-forge {metadata['project']['version']}":
+        raise RuntimeError(f"Installed Forge reported an unexpected version: {version.stdout}")
+    run([str(forge), "branch-name", "--branch", "forge/wheel-smoke"], cwd=temporary, env=env)
+    diagnosis = run([str(forge), "doctor", "--json"], cwd=temporary, env=env, expected=2)
+    report = json.loads(diagnosis.stdout)
+    checkout = next(check for check in report["checks"] if check["name"] == "checkout")
+    if report["ready"] or checkout["status"] != "error" or diagnosis.stderr:
+        raise RuntimeError("Doctor did not return a clean JSON checkout failure.")
+    run([str(forge), "check"], cwd=repo, env=env)
+    smoke_skill_workflow(forge, repo, temporary, env)
+    if archive_hashes(archives) != hashes:
+        raise RuntimeError("Distribution bytes changed during smoke qualification.")
+    return archives, hashes
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Smoke-test an isolated wheel, optionally retaining the exact successful archives."""
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Retain successful archives, checksums, and report in a new directory.",
+    )
+    arguments = parser.parse_args(argv)
+    destination = output_destination(arguments.output_dir) if arguments.output_dir else None
     repo = Path(__file__).resolve().parents[1]
     uv = shutil.which("uv")
     if uv is None:
@@ -330,53 +525,17 @@ def main() -> None:
     env = dict(os.environ)
     for name in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
         env.pop(name, None)
+    before = source_state(repo, env) if destination else None
     with tempfile.TemporaryDirectory(prefix="forge-wheel-smoke-") as directory:
         temporary = Path(directory).resolve()
-        distributions = temporary / "dist"
-        # uv build creates an sdist, then builds the wheel from that sdist.
-        run([uv, "build", "--out-dir", str(distributions)], cwd=repo, env=env)
-        wheels = list(distributions.glob("*.whl"))
-        sources = list(distributions.glob("*.tar.gz"))
-        if len(wheels) != 1 or len(sources) != 1:
-            raise RuntimeError("Expected exactly one wheel and one source distribution.")
-        environment = temporary / "environment"
-        run([uv, "venv", "--python", sys.executable, str(environment)], cwd=temporary, env=env)
-        binaries = environment / ("Scripts" if os.name == "nt" else "bin")
-        python = binaries / ("python.exe" if os.name == "nt" else "python")
-        forge = binaries / ("forge.exe" if os.name == "nt" else "forge")
-        run(
-            [uv, "pip", "install", "--python", str(python), str(wheels[0])],
-            cwd=temporary,
-            env=env,
-        )
-        probe = run(
-            [
-                str(python),
-                "-I",
-                "-c",
-                "import json, sys, agent_plugin_forge; "
-                "print(json.dumps([sys.prefix, agent_plugin_forge.__file__]))",
-            ],
-            cwd=temporary,
-            env=env,
-        )
-        prefix, module = (Path(value).resolve() for value in json.loads(probe.stdout))
-        if prefix != environment or not module.is_relative_to(environment):
-            raise RuntimeError(f"Forge was not imported from the isolated environment: {module}")
-        if "site-packages" not in module.parts:
-            raise RuntimeError(f"Forge was not loaded from installed site-packages: {module}")
-        metadata = tomllib.loads((repo / "pyproject.toml").read_text(encoding="utf-8"))
-        version = run([str(forge), "--version"], cwd=temporary, env=env)
-        if version.stdout.strip() != f"agent-plugin-forge {metadata['project']['version']}":
-            raise RuntimeError(f"Installed Forge reported an unexpected version: {version.stdout}")
-        run([str(forge), "branch-name", "--branch", "forge/wheel-smoke"], cwd=temporary, env=env)
-        diagnosis = run([str(forge), "doctor", "--json"], cwd=temporary, env=env, expected=2)
-        report = json.loads(diagnosis.stdout)
-        checkout = next(check for check in report["checks"] if check["name"] == "checkout")
-        if report["ready"] or checkout["status"] != "error" or diagnosis.stderr:
-            raise RuntimeError("Doctor did not return a clean JSON checkout failure.")
-        run([str(forge), "check"], cwd=repo, env=env)
-        smoke_skill_workflow(forge, repo, temporary, env)
+        archives, hashes = build_and_smoke(repo, temporary, uv, env)
+        if destination is not None and before is not None:
+            if source_state(repo, env) != before:
+                raise RuntimeError(
+                    "Source checkout changed during qualification; no archives retained."
+                )
+            retain_archives(destination, archives, hashes, before, env)
+            print(f"Retained tested archives, SHA256SUMS, and smoke-report.json in {destination}")
     print("Built sdist and wheel; installed import, update, and repository checks passed.")
 
 

@@ -14,7 +14,7 @@ uv run pytest
 uv run forge generate --check
 uv run forge check
 uv run zensical build --clean --strict
-uv run python scripts/smoke_wheel.py
+uv run python scripts/smoke_wheel.py --output-dir "$PWD/release-candidate"
 ```
 
 Pydantic owns forge-specific catalog, provenance, marketplace, and MCP semantic contracts. Vendored JSON Schema remains authoritative for Agent Plugins `plugin.json` and `mcp.json`. Schema bytes are pinned by complete checksums for offline validation.
@@ -22,6 +22,10 @@ Pydantic owns forge-specific catalog, provenance, marketplace, and MCP semantic 
 The default `ty check` scope includes the CLI, tests, benchmarks, Forge's explicitly listed bootstrap helper, examples, and repository scripts. Imported plugins are outside this scope and retain their own runtime dependencies.
 
 The wheel smoke check builds the wheel from the source distribution and installs it outside the source checkout. In a disposable Forge checkout with a local Git origin, the installed CLI creates review branches, imports two authored skills into one plugin, and updates one skill after reviewing its exact plan and `--diff` preview. It checks added, removed, changed, and executable files, rejects incorrect hashes and plans made stale by source changes without altering the checkout, and validates generated marketplaces and refreshed provenance. The companion skill, shared license, MCP files, assets, and empty working directory must survive unchanged. Fixture scripts and MCP servers are never executed. These packaging checks complement client acceptance below.
+
+Use a new output directory beneath an existing directory, without symlinks or Windows reparse points in its path. `--output-dir` refuses existing destinations, including empty directories, and only retains files after every smoke check passes. Without the option, all distributions remain temporary. The retained directory contains the exact tested `.whl` and `.tar.gz`, `SHA256SUMS`, and `smoke-report.json`. The report records archive hashes, the actual checked-out Git commit, source dirtiness and a digest of tracked and unignored untracked paths, bytes, and executable flags. Source changes during qualification or changed archive bytes stop retention. Symlinks, Windows reparse points, and other non-regular source files are refused when retaining artifacts.
+
+CI retains a separate `distributions-OS-python-VERSION-COMMIT` artifact for each Python 3.12 platform for 14 days. The report records available GitHub run identity and the pull request head separately: pull request checks usually test a generated merge commit. A successful smoke report is packaging evidence, not proof that the entire release gate passed. Dirty local builds are explicitly marked `dirty: true`; they are useful for development checks but are not release candidates.
 
 When updating Python libraries, review their supported Python versions and migration notes, update `pyproject.toml`, and run `uv lock --upgrade` followed by the local gate. The project supports Python 3.11 and later; CI also tests the minimum version. Subprocess coverage uses `[tool.coverage.run] patch = ["subprocess"]`, as required by [pytest-cov 7](https://pytest-cov.readthedocs.io/en/latest/subprocess-support.html).
 
@@ -63,4 +67,6 @@ Private-marketplace qualification requires a disposable private GitHub.com or Gi
 
 Merge only the reviewed head SHA after every required check succeeds. Then verify clean `main`, the live GitHub branch protections or ruleset, generated marketplace bytes, a fresh marketplace install, and the deployed Zensical site. Documentation deploys only from `main`.
 
-Build the Python wheel and source distribution from the reviewed release tree with `uv build`, and smoke-test the wheel in an isolated environment. Tag the verified merged commit as `vVERSION` and publish a GitHub release containing both archives and their `SHA256SUMS`. Read back the release tag, asset hashes, marketplace version, and deployed documentation. Plugin consumers install from the Git marketplace; the Python archives provide the Forge CLI. This workflow does not publish to PyPI.
+Run the local release gate from the clean, verified merged commit and retain its distributions with `--output-dir`. Alternatively, download the artifact from the successful `main` workflow for that exact commit. Confirm `smoke-report.json` has `smoke_passed: true`, `source.dirty: false`, and `source.commit` equal to the commit being tagged. A pull request merge-ref artifact does not establish that it was built from the final merged commit.
+
+Verify both retained archive files against `SHA256SUMS` and the report's `archives` mapping. Tag that verified commit as `vVERSION` and publish a GitHub release containing those same `.whl` and `.tar.gz` files, `SHA256SUMS`, and `smoke-report.json`. Do not rebuild between qualification and publication; a rebuild needs its own smoke check and hashes. Read back the release tag, asset hashes, marketplace version, and deployed documentation. Plugin consumers install from the Git marketplace; the Python archives provide the Forge CLI. This workflow does not publish to PyPI.

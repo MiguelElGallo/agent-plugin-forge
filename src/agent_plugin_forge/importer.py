@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import posixpath
 import re
 import shutil
@@ -37,6 +36,7 @@ from .filesystem import (
 from .models import Catalog, CatalogPlugin, ImportPlan, ImportRequest, ProvenanceRecord, StdioServer
 from .packages import PortablePackage, load_package
 from .sources import SkillSource, resolve_skill_source
+from .transactions import Replacement, ReplacementTransaction
 
 
 def _manifest_repository_url(origin: str, *, repo: Path) -> str:
@@ -638,7 +638,7 @@ def _apply_change(repo: Path, request: ImportRequest, plan: ImportPlan) -> Impor
         raise ForgeError("Catalog changed after the reviewed plan")
 
     temporary_root = Path(tempfile.mkdtemp(prefix=".forge-import-", dir=repo))
-    preserve_recovery = False
+    transaction = ReplacementTransaction(temporary_root, "Import")
     try:
         staged_plugin = temporary_root / "plugin"
         if plan.creates_plugin:
@@ -717,38 +717,25 @@ def _apply_change(repo: Path, request: ImportRequest, plan: ImportPlan) -> Impor
         if _forge_repository_url(repo) != plan.repository_url:
             raise ForgeError("Forge origin changed while staging the reviewed plan")
 
-        backup = temporary_root / "backup"
-        replaced_existing = plugin_root.exists()
-        backed_up = False
-        installed = False
         try:
-            plugins_root.mkdir(parents=True, exist_ok=True)
-            if replaced_existing:
-                os.replace(plugin_root, backup)
-                backed_up = True
-            os.replace(staged_plugin, plugin_root)
-            installed = True
-            os.replace(staged_catalog, catalog_path)
-        except Exception:
-            try:
-                if installed:
-                    shutil.rmtree(plugin_root)
-                if backed_up:
-                    os.replace(backup, plugin_root)
-            except Exception as recovery_error:
-                preserve_recovery = True
-                raise ForgeError(
-                    f"Import rollback failed; recovery files preserved at "
-                    f"{diagnostic_value(temporary_root)}. "
-                    f"Original plugin backup, if created: {diagnostic_value(backup)}"
-                ) from recovery_error
-            # Catalog replacement is the last operation; a failed rename leaves it intact.
-            if not plugins_root_existed:
+            transaction.publish(
+                [
+                    Replacement(staged_plugin, plugin_root, temporary_root / "backup"),
+                    Replacement(
+                        staged_catalog,
+                        catalog_path,
+                        temporary_root / "catalog-backup.json",
+                        copy_backup=True,
+                    ),
+                ]
+            )
+        except BaseException:
+            if not transaction.preserve_recovery and not plugins_root_existed:
                 with suppress(OSError):
                     plugins_root.rmdir()
             raise
     finally:
-        if not preserve_recovery:
+        if not transaction.preserve_recovery:
             shutil.rmtree(temporary_root)
     return plan
 

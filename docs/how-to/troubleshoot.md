@@ -76,6 +76,12 @@ Review the generated diff. Both marketplace files are derived outputs; make meta
 
 ## Marketplace generation reports a rollback failure
 
-If generation fails while replacing an output, Forge attempts to restore every output it touched. If any restoration fails, the error identifies a `.forge-generate-*` recovery directory in the checkout. Keep that directory: its `backups/` tree contains originals that could not be restored, under their repository-relative paths.
+If generation fails or is cancelled with Ctrl-C while replacing an output, Forge attempts to restore every output it touched. If any restoration fails or is interrupted, the error identifies a `.forge-generate-*` recovery directory in the checkout. Keep that directory: its `backups/` tree contains originals that could not be restored, under their repository-relative paths. Other outputs may already have been restored.
 
 Inspect the reported error and filesystem permissions, recover any remaining originals from `backups/`, then run `uv run forge generate` and `uv run forge check`. Remove the recovery directory only after verifying the outputs and preserving any files you need.
+
+## Import or update reports a rollback failure
+
+Keep the reported `.forge-import-*` directory. Its `backup/` may contain the previous plugin, and `catalog-backup.json` may contain the previous catalog. Compare these with the installed plugin and `catalog/plugins.json` before restoring anything: recovery may already have restored one target, and a copied catalog backup may match the catalog still in place. Fix the reported filesystem problem, restore remaining originals, then run `uv run forge generate` and `uv run forge check`. Remove recovery files only after verifying the checkout.
+
+When cancellation is handled and rollback succeeds, the original cancellation is reported and backups are cleaned up. Forced termination or a power loss cannot run this recovery code. If a `.forge-import-*` or `.forge-generate-*` directory remains after such an interruption, preserve it and inspect both installed files and backups before retrying.

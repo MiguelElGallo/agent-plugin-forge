@@ -14,7 +14,7 @@ Install the Forge once, choose and remember your publication repository, then gi
 
 You do **not** need to clone this repository to use the Forge.
 
-The CI workflow runs linting, formatting, type checking, Forge validation, and a strict documentation build on Ubuntu. The pytest suite and an isolated installed-wheel import and update smoke check run on Ubuntu, macOS, and Windows.
+The CI workflow runs linting, formatting, type checking, Forge validation, and a strict documentation build on Ubuntu. The pytest suite and an isolated installed-wheel import and update smoke check run on Ubuntu, macOS, and Windows. Successful smoke checks retain the exact tested distributions, checksums, and source report as CI artifacts.
 
 ## 1. Install Agent Plugin Forge
 

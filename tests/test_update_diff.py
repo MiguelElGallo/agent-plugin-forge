@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,146 @@ from agent_plugin_forge.preview import render_update_diff
 from .conftest import git
 from .test_importer import apply_reviewed
 from .test_updater import update_request
+
+
+def test_update_diff_shows_all_changed_provenance_fields_when_skill_bytes_are_unchanged(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    apply_reviewed(empty_forge, skill_source, transformations=("Previous preparation",))
+    request = update_request(
+        skill_source,
+        origin="https://example.com/reviewed-source",
+        revision="abcdef0123456789abcdef0123456789abcdef01",
+        source_subpath="reviewed/sample-skill",
+        imported_at="2026-09-22",
+        transformations=("Reviewed preparation", "Retained original instructions"),
+    )
+    plan = plan_update(empty_forge, request)
+    original_plan = plan.model_dump(mode="json")
+    before = tree_snapshot(empty_forge)
+
+    output = render_update_diff(empty_forge, request, plan)
+
+    assert not any(plan.changes.values())
+    assert "Provenance metadata comparison" in output
+    assert "provenance/sample-skill.json (selected metadata fields)" in output
+    for old, new in (
+        (
+            '"origin": "https://example.com/source"',
+            '"origin": "https://example.com/reviewed-source"',
+        ),
+        (
+            '"revision": "0123456789abcdef0123456789abcdef01234567"',
+            '"revision": "abcdef0123456789abcdef0123456789abcdef01"',
+        ),
+        ('"sourceSubpath": "skills/sample-skill"', '"sourceSubpath": "reviewed/sample-skill"'),
+        ('"importedAt": "2026-08-21"', '"importedAt": "2026-09-22"'),
+    ):
+        assert f"-  {old}" in output
+        assert f"+  {new}" in output
+    assert '-    "Previous preparation"' in output
+    assert '+    "Reviewed preparation"' in output
+    assert '+    "Retained original instructions"' in output
+    assert plan.model_dump(mode="json") == original_plan
+    assert plan_update(empty_forge, request).plan_sha256 == plan.plan_sha256
+    assert tree_snapshot(empty_forge) == before
+
+
+def test_update_diff_reports_unchanged_provenance_metadata(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    request = update_request(skill_source)
+    plan = plan_update(empty_forge, request)
+
+    output = render_update_diff(empty_forge, request, plan)
+
+    metadata = output.split("Provenance metadata comparison", 1)[1].split("\nDiff:", 1)[0]
+    assert "Content unchanged (identical bytes)." in metadata
+    assert "--- a/" not in metadata
+
+
+def test_update_diff_escapes_provenance_controls_and_distinguishes_literal_escapes(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    apply_reviewed(empty_forge, skill_source, transformations=("Tab:\tend",))
+    request = update_request(
+        skill_source,
+        source_subpath="source\n\x1b[31m/sample-skill",
+        transformations=("Tab:\\tend", "Changed\n\t\r\x1b[31m\x85metadata"),
+    )
+    plan = plan_update(empty_forge, request)
+
+    output = render_update_diff(empty_forge, request, plan)
+
+    assert '-    "Tab:\\tend"' in output
+    assert '+    "Tab:\\\\tend"' in output
+    assert '"sourceSubpath": "source\\n\\u001b[31m/sample-skill"' in output
+    assert "Changed\\n\\t\\r\\u001b[31m\\x85metadata" in output
+    assert not any(control in output for control in ("\t", "\r", "\x1b", "\x85"))
+
+
+@pytest.mark.parametrize(
+    ("transformation", "limit"),
+    [("x" * (128 * 1024), "byte limit"), ("\x85" * 20000, "output limit")],
+    ids=["oversized-metadata", "escaped-output-expansion"],
+)
+def test_update_diff_bounds_provenance_metadata_and_reports_omissions(
+    empty_forge: Path, skill_source: Path, transformation: str, limit: str
+) -> None:
+    apply_reviewed(empty_forge, skill_source, transformations=(transformation + "previous",))
+    request = update_request(skill_source, transformations=(transformation + "proposed",))
+    plan = plan_update(empty_forge, request)
+
+    output = render_update_diff(empty_forge, request, plan)
+
+    assert len(output) <= preview_module.MAX_DIFF_OUTPUT_CHARS
+    assert limit in output
+    assert "omitted" in output
+    assert "review" in output.lower()
+    assert transformation not in output
+
+
+def test_update_diff_provenance_uses_reviewed_plan_after_request_metadata_changes(
+    empty_forge: Path, skill_source: Path
+) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    request = update_request(
+        skill_source,
+        origin="https://example.com/reviewed-source",
+        revision="abcdef0123456789abcdef0123456789abcdef01",
+        source_subpath="reviewed/source-path",
+        imported_at="2026-09-22",
+        transformations=("Reviewed transformation",),
+    )
+    plan = plan_update(empty_forge, request)
+    original_plan = plan.model_dump(mode="json")
+    changed = request.model_copy(
+        update={
+            "origin": "https://unreviewed.example/source",
+            "revision": "f" * 40,
+            "source_subpath": "unreviewed/path",
+            "imported_at": date(2099, 1, 1),
+            "transformations": ("Unreviewed transformation",),
+        }
+    )
+
+    output = render_update_diff(empty_forge, changed, plan)
+
+    assert "https://example.com/reviewed-source" in output
+    assert "abcdef0123456789abcdef0123456789abcdef01" in output
+    assert "reviewed/source-path" in output
+    assert "2026-09-22" in output
+    assert "Reviewed transformation" in output
+    for unreviewed in (
+        "unreviewed.example",
+        "f" * 40,
+        "unreviewed/path",
+        "2099-01-01",
+        "Unreviewed",
+    ):
+        assert unreviewed not in output
+    assert plan.model_dump(mode="json") == original_plan
 
 
 def test_update_diff_shows_changed_added_removed_and_empty_files_without_writes(

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 import agent_plugin_forge.importer as importer_module
+import agent_plugin_forge.transactions as transactions_module
 from agent_plugin_forge.common import ForgeError, json_bytes, load_json
 from agent_plugin_forge.filesystem import tree_snapshot
 from agent_plugin_forge.importer import apply_update, plan_import, plan_update
@@ -541,7 +542,7 @@ def test_update_restores_original_package_at_each_publish_failure(
     catalog = empty_forge / "catalog" / "plugins.json"
     before = tree_snapshot(plugin)
     catalog_before = catalog.read_bytes()
-    real_replace = importer_module.os.replace
+    real_replace = transactions_module.os.replace
     failed = False
 
     def fail_once(source: Path, destination: Path) -> None:
@@ -556,7 +557,7 @@ def test_update_restores_original_package_at_each_publish_failure(
             raise OSError("simulated update publish failure")
         real_replace(source, destination)
 
-    monkeypatch.setattr(importer_module.os, "replace", fail_once)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_once)
 
     with pytest.raises(OSError, match="simulated update publish failure"):
         apply_update(empty_forge, update.model_copy(update={"expected_sha256": plan.plan_sha256}))
@@ -580,7 +581,7 @@ def test_update_preserves_backup_when_rollback_fails(
     catalog = empty_forge / "catalog" / "plugins.json"
     before = tree_snapshot(plugin)
     catalog_before = catalog.read_bytes()
-    real_replace = importer_module.os.replace
+    real_replace = transactions_module.os.replace
     real_rmtree = importer_module.shutil.rmtree
 
     def fail_replace(source: Path, destination: Path) -> None:
@@ -595,7 +596,7 @@ def test_update_preserves_backup_when_rollback_fails(
             raise OSError("simulated cleanup failure")
         real_rmtree(path, *args, **kwargs)
 
-    monkeypatch.setattr(importer_module.os, "replace", fail_replace)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_replace)
     monkeypatch.setattr(importer_module.shutil, "rmtree", fail_cleanup)
 
     with pytest.raises(ForgeError, match="recovery files preserved") as raised:
