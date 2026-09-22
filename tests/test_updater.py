@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 from pathlib import Path
@@ -169,6 +170,21 @@ def test_update_preserves_other_skill_and_mcp_files(empty_forge: Path, skill_sou
     assert (empty_forge / "catalog" / "plugins.json").read_bytes() == catalog_before
     manifest_after = load_json(plugin / "plugin.json")
     assert manifest_after == {**manifest_before, "version": "0.3.0"}
+
+
+def test_update_preserves_reformatted_catalog_bytes(empty_forge: Path, skill_source: Path) -> None:
+    apply_reviewed(empty_forge, skill_source)
+    catalog = empty_forge / "catalog" / "plugins.json"
+    catalog.write_bytes(
+        (json.dumps(load_json(catalog), ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+    )
+    original = catalog.read_bytes()
+    assert b"\n  " not in original
+
+    (skill_source / "reference.txt").write_text("Reviewed update.\n", encoding="utf-8")
+    reviewed_update(empty_forge, update_request(skill_source))
+
+    assert catalog.read_bytes() == original
 
 
 @pytest.mark.parametrize("version", [None, "0.1.0", "0.0.9"])

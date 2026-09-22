@@ -704,7 +704,16 @@ def _apply_change(repo: Path, request: ImportRequest, plan: ImportPlan) -> Impor
         (provenance_dir / f"{plan.skill}.json").write_bytes(json_bytes(provenance))
         _validate_staged_package(repo, staged_plugin, _catalog_entry(catalog, plan.plugin))
         staged_catalog = temporary_root / "catalog.json"
-        staged_catalog.write_bytes(json_bytes(catalog))
+        if plan.creates_plugin:
+            staged_catalog.write_bytes(json_bytes(catalog))
+        else:
+            try:
+                original_catalog = catalog_path.read_bytes()
+            except OSError as exc:
+                raise ForgeError(f"Cannot read catalog: {diagnostic_value(exc)}") from exc
+            if hashlib.sha256(original_catalog).hexdigest() != plan.catalog_sha256:
+                raise ForgeError("Catalog changed while staging the reviewed plan")
+            staged_catalog.write_bytes(original_catalog)
 
         _, current_catalog_sha256 = _read_catalog(repo)
         if current_catalog_sha256 != plan.catalog_sha256:
