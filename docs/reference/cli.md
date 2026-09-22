@@ -10,7 +10,7 @@ uv run forge --version
 uv run forge import --help
 ```
 
-`forge --version` prints the installed package version and works outside a Forge checkout when the `forge` executable is on your path.
+`forge --version` prints the installed package version and works outside a Forge checkout when the `forge` executable is on your path. `forge doctor` also works there and reports the missing checkout alongside local tool diagnostics.
 
 It also provides shell-completion helpers:
 
@@ -87,9 +87,9 @@ uv run forge doctor --json
 
 Doctor checks the running Python version, availability of Git and `uv`, the Git checkout, current branch, worktree cleanliness, a safe configured origin, and alignment of local `main` with cached `origin/main`. GitHub CLI availability is informational because review does not require publication authentication. If Git clean/process filters are configured, doctor skips the worktree-status probe and reports a warning so those programs cannot run. Submodule contents are not inspected; tracked submodules also produce a warning instead of a complete-readiness claim.
 
-The JSON report contains `ready` and a `checks` array with `name`, `status`, and `detail`. Exit status is `0` when ready and `2` when a warning or error needs attention. A feature branch or dirty worktree can be normal during ongoing work; the result describes readiness to **start a new branch**, not whether your current work is valid.
+The JSON report contains `ready` and a `checks` array with `name`, `status`, and `detail`. Exit status is `0` when ready and `2` when a warning or error needs attention. Outside a Forge checkout, `forge doctor --json` still returns this structured report with `ready: false`, an error identifying the missing checkout, and local tool diagnostics. It does not probe the surrounding directory with Git. A feature branch or dirty worktree can be normal during ongoing work; the result describes readiness to **start a new branch**, not whether your current work is valid.
 
-Doctor does not fetch, contact the remote, authenticate, refresh the Git index, or run imported content. Cached alignment can be stale. Branch helpers still perform their live remote checks, and `forge check` still validates packages. Run doctor from a Forge checkout. Like any `uv run` command, the launcher may prepare its Python environment before doctor starts; `uv sync --locked` prepares that environment separately.
+Doctor does not fetch, contact the remote, authenticate, refresh the Git index, or run imported content. Cached alignment can be stale. Branch helpers still perform their live remote checks, and `forge check` still validates packages. Use the installed `forge doctor` executable outside a checkout. Like any `uv run` command, the launcher may prepare its Python environment before doctor starts; `uv sync --locked` prepares that environment separately.
 
 ## `forge plugin-branch`
 
@@ -139,13 +139,15 @@ Without `--apply`, the command writes nothing and prints a full-plan SHA-256. Ap
 
 Existing bundles inherit their catalog category and require a strictly higher semantic version.
 
-Import adds a new skill destination. It refuses to overwrite an existing `skills/<name>` directory, even with a higher version; it is not an in-place skill-update command. Updating an installed client plugin is a separate [client operation](client-installation.md#update-an-installed-plugin).
+Import adds a new skill destination. It refuses to overwrite an existing `skills/<name>` directory, even with a higher version. Use [`forge update`](#forge-update) for a reviewed replacement of an existing skill. Updating an installed client plugin is a separate [client operation](client-installation.md#update-an-installed-plugin).
 
 Add `--json` to print only the complete plan as JSON, during either planning or application.
 The output includes the destination, source file hashes and executable modes, license digest,
 and `review_payload`: the exact metadata, source file map, and destination state bound by `plan_sha256`.
-For bundles, `review_payload.targetState` includes existing file hashes, executable modes,
-and the catalog entry.
+For existing plugins, `review_payload.targetState` includes existing file hashes, executable
+modes, directory paths (including empty directories), and the catalog entry. Recreate and
+review saved bundle plans that predate directory tracking; their earlier hashes do not
+approve the expanded destination state.
 The default text output remains a short summary.
 
 For a no-write plan, text output also prints a complete apply command for a POSIX shell or Windows Git Bash. It preserves all reviewed import options, absolute source and license paths, the date, and the plan hash. Run it from the reported Forge checkout only after approval. The command is not PowerShell or Command Prompt syntax. `--json` continues to emit only the review artifact, with no command text added.
@@ -172,6 +174,53 @@ If publication fails, Forge rolls back completed file moves. If rollback itself 
 Forge reports the recovery directory and keeps it for manual recovery. Its `backup`
 subdirectory, when created, contains the original plugin. Preserve these recovery files
 until the original plugin has been restored and the repository validated.
+
+## `forge update`
+
+Plans the replacement of one existing skill from a reviewed local source. It accepts the same three source shapes as `forge import`; the selected source skill's name must match an existing skill in the destination plugin, with valid current provenance.
+
+Required options are `--source`, `--plugin`, `--version`, `--license`, `--license-file`, `--origin`, and `--revision`. The version must be strictly higher than the current plugin version. Optional source and review options are `--source-skill`, `--source-subpath`, `--imported-at`, `--transformation`, `--expected-sha256`, `--apply`, `--json`, and `--diff`. Origin and immutable-revision rules are the same as for import.
+
+For example, after staging and reviewing a committed revision of an existing `incident-summary` skill:
+
+```bash
+uv run forge branch --plugin incident-summary --skill incident-summary
+uv run forge update \
+  --source /absolute/path/to/skill-sources/skills/incident-summary \
+  --plugin incident-summary \
+  --version 0.2.0 \
+  --license MIT \
+  --license-file /absolute/path/to/skill-sources/LICENSE \
+  --origin https://github.company.example/platform/skill-sources.git \
+  --revision "$(git -C /absolute/path/to/skill-sources rev-parse HEAD)" \
+  --source-subpath skills/incident-summary
+```
+
+Replace the paths, source identity, license, and version with the reviewed values. Verify that the staged files match the declared commit; Forge records this declaration and does not fetch or compare the upstream revision. See the [maintenance workflow](../how-to/maintain-team-marketplace.md#maintain-existing-skills) for the full review process.
+
+Planning writes nothing. The plan identifies `operation: "update"`, the old and new versions, added, removed, modified, and mode-changed skill files, and the provenance and license destinations. Its hash binds the complete source snapshot, license, metadata, catalog, and current destination package, including empty directory paths. Inspect every changed instruction, helper, asset, and removal before approving that hash.
+
+Add `--diff` to a planning command to preview unified text diffs, executable-mode changes, provenance metadata changes, and a comparison of the previous and proposed license evidence. The provenance comparison shows `origin`, `revision`, `sourceSubpath`, `importedAt`, and `transformations`, including updates that leave skill files unchanged. Its previous values come from the verified installed record; its proposed values come from the plan's `review_payload`. Comparison hashes describe these selected metadata fields, not the complete provenance file.
+
+The preview uses snapshots verified against the plan and leaves its hash unchanged. If the captured source, license, destination, catalog, or Forge origin differs from the plan, Forge refuses the preview instead of printing an apply command. The license comparison does not imply deletion of the previous evidence path.
+
+```bash
+uv run forge update [UPDATE_OPTIONS] --diff
+```
+
+The preview escapes terminal control characters, shows CRLF endings as `\r`, and marks missing final newlines. Binary or non-UTF-8 files receive a size and SHA-256 summary. Text comparisons, including provenance metadata, are limited to 64 KiB and 1,000 lines per file side, 1 MiB of combined input across comparisons, and 131,072 characters of preview output. Omitted content is explicitly identified; review those full files before approving. For omitted provenance metadata, compare the installed `provenance/<skill>.json` with the proposed values in a separate `--json` plan's `review_payload`. An unchanged file needs no text comparison.
+
+`--diff` is available only for text planning, so it cannot be combined with `--json` or `--apply`. The printed apply command omits `--diff` and retains the exact reviewed hash. Use a separate `--json` invocation when saving the review artifact.
+
+After approval, repeat the same command with `--apply --expected-sha256 HASH`, preserving the original `--imported-at` date when continuing on another day. Apply requires the matching `skill/<plugin>/<skill>` branch. Save a JSON plan outside the checkout when review will continue later; like import, the saved JSON is a review artifact, not an apply input. Changed inputs require a fresh review and approval.
+
+The update replaces only the selected skill's tree, removes obsolete files from that tree, rewrites its provenance, and increases the shared plugin version. It preserves the remaining manifest fields, catalog entry, other skills, and MCP files. Category, author, and description options are therefore unavailable. The SPDX expression must match the skill's current provenance; license-expression changes belong in a separately reviewed plugin-wide contributor change.
+
+New license evidence is stored at `licenses/<skill>/LICENSE`, reusing the exact spelling of existing path components (for example, `LICENSES`). Ambiguous case aliases block the update on every platform. Shared `LICENSE` files and old license files outside the replaced skill tree are preserved. Evidence inside that tree is subject to its reviewed file changes. Forge replaces an existing file at the new evidence path only when the target skill's current provenance owns it exclusively; an unowned or shared file at that path blocks the update. Changes that would invalidate another skill's license evidence are rejected, including evidence stored in the updated tree or in metadata that the update rewrites.
+
+Apply validates the staged package's manifest, MCP references, and provenance before replacing any installed files. File removals and mode changes cannot leave a broken MCP command or working directory. Update planning also rejects removing or changing the type of existing files and directories referenced by explicit `${PLUGIN_ROOT}/...` arguments, including `--flag=${PLUGIN_ROOT}/...`. Paths that do not yet exist remain allowed for outputs; Forge does not infer the meaning of other argument forms. Existing directories outside the replaced skill tree, including empty MCP working directories, are preserved. A staging or validation failure leaves the installed package intact.
+
+Apply also rechecks the destination, catalog, and Forge origin before the final file moves. It does not lock the directory tree or make the package and catalog replacements one atomic filesystem operation. If replacement fails, Forge attempts rollback and retains recovery files when restoration fails. Run `forge generate` and `forge check` after application. Applying a local update does not authorize a push, pull request, or merge.
 
 ## `forge generate`
 

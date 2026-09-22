@@ -1,0 +1,9 @@
+{
+  "title": "Review status <Q3> & delivery",
+  "statuses": [
+    {"label": "Ready", "count": 8},
+    {"label": "In review", "count": 3},
+    {"label": "Needs résumé", "count": 1},
+    {"label": "Blocked & waiting", "count": 0}
+  ]
+}

@@ -44,9 +44,15 @@ Refresh and update an existing installation with the client-specific operation:
 | GitHub Copilot CLI | `copilot plugin marketplace update MARKETPLACE_NAME`, then `copilot plugin update PLUGIN_NAME@MARKETPLACE_NAME` |
 | Visual Studio Code | Run **Extensions: Check for Extension Updates**, then choose **Update** when the installed plugin offers it |
 
-## Upgrade Forge to 1.0.1
+## Upgrade Forge to 1.1.0
 
-Refresh the marketplace and update `agent-plugin-forge` with the commands above, then verify that its installed version is `1.0.1`. Start a new chat so the agent loads the updated package.
+Once 1.1.0 is available in the marketplace, refresh and update `agent-plugin-forge` with the commands above, then verify that its installed version is `1.1.0`. Start a new chat so the agent loads the updated package.
+
+Version 1.1.0 adds [`forge update`](cli.md#forge-update) for reviewed replacement of an existing skill. Update plans include file removals and executable changes, and apply preserves other skills, shared metadata, and checked MCP references. YAML frontmatter now rejects duplicate or non-string mapping keys; correct invalid source in a separately reviewed change. `forge doctor --json` returns structured checkout diagnostics even when called outside a Forge repository.
+
+Destination snapshots now include directory paths. Generate, review, and approve fresh plans for existing plugins after upgrading; an older approval hash does not authorize the expanded plan.
+
+### Earlier upgrade changes
 
 Version 1.0.1 fixes two low-severity issues: inconsistent file snapshots during import approval and control characters in terminal diagnostics. It adds the exact source file map to the approval hash. Plans created by older versions need to be generated, reviewed, and approved again; do not substitute a new hash without review. File bytes, filenames, and decoded JSON values are not rewritten by diagnostic escaping.
 

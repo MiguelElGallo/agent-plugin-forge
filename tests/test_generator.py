@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-import agent_plugin_forge.generator as generator_module
+import agent_plugin_forge.transactions as transactions_module
 from agent_plugin_forge.common import ForgeError
 from agent_plugin_forge.generator import generate, generation_drift, render_marketplaces
 
@@ -110,7 +110,7 @@ def test_generation_rolls_back_every_output_on_publish_failure(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["version"] = "0.2.0"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    real_replace = generator_module.os.replace
+    real_replace = transactions_module.os.replace
     calls = 0
 
     def fail_publish(source: Path, destination: Path) -> None:
@@ -120,7 +120,7 @@ def test_generation_rolls_back_every_output_on_publish_failure(
             raise OSError("simulated generated-output publish failure")
         real_replace(source, destination)
 
-    monkeypatch.setattr(generator_module.os, "replace", fail_publish)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_publish)
     with pytest.raises(OSError, match="simulated"):
         generate(empty_forge)
     assert {path: path.read_bytes() for path in paths} == before
@@ -132,7 +132,7 @@ def test_generation_removes_new_outputs_after_publish_failure(
     empty_forge: Path, monkeypatch: pytest.MonkeyPatch, failure_at: int
 ) -> None:
     paths = list(render_marketplaces(empty_forge))
-    real_replace = generator_module.os.replace
+    real_replace = transactions_module.os.replace
     calls = 0
 
     def fail_publish(source: Path, destination: Path) -> None:
@@ -142,7 +142,7 @@ def test_generation_removes_new_outputs_after_publish_failure(
             raise OSError("simulated generated-output publish failure")
         real_replace(source, destination)
 
-    monkeypatch.setattr(generator_module.os, "replace", fail_publish)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_publish)
     with pytest.raises(OSError, match="simulated"):
         generate(empty_forge)
     assert all(not path.exists() for path in paths)
@@ -170,7 +170,7 @@ def test_failed_generation_rollback_preserves_recovery_and_restores_other_output
     manifest["version"] = "0.2.0"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     rendered = render_marketplaces(empty_forge)
-    real_replace = generator_module.os.replace
+    real_replace = transactions_module.os.replace
     real_unlink = Path.unlink
 
     def fail_replace(source: Path, destination: Path) -> None:
@@ -185,7 +185,7 @@ def test_failed_generation_rollback_preserves_recovery_and_restores_other_output
             raise OSError("simulated cleanup failure")
         real_unlink(path, missing_ok=missing_ok)
 
-    monkeypatch.setattr(generator_module.os, "replace", fail_replace)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_replace)
     monkeypatch.setattr(Path, "unlink", fail_unlink)
     with pytest.raises(ForgeError, match="recovery files preserved") as error:
         generate(empty_forge)

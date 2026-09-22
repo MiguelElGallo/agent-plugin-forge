@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 import agent_plugin_forge.importer as importer_module
+import agent_plugin_forge.transactions as transactions_module
 from agent_plugin_forge.common import ForgeError, load_json
 from agent_plugin_forge.filesystem import tree_snapshot
 from agent_plugin_forge.importer import (
@@ -478,7 +479,7 @@ def test_apply_rolls_back_plugin_and_catalog_on_publish_failure(
     reviewed = import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
     git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     catalog_before = (empty_forge / "catalog" / "plugins.json").read_bytes()
-    real_replace = importer_module.os.replace
+    real_replace = transactions_module.os.replace
     calls = 0
 
     def fail_catalog_publish(source: Path, destination: Path) -> None:
@@ -488,7 +489,7 @@ def test_apply_rolls_back_plugin_and_catalog_on_publish_failure(
             raise OSError("simulated catalog publish failure")
         real_replace(source, destination)
 
-    monkeypatch.setattr(importer_module.os, "replace", fail_catalog_publish)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_catalog_publish)
     with pytest.raises(OSError, match="simulated"):
         apply_import(empty_forge, reviewed)
     assert not (empty_forge / "plugins" / "sample-skill").exists()
@@ -516,7 +517,7 @@ def test_apply_preserves_original_tree_at_each_publish_failure(
     git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
     before = tree_snapshot(empty_forge / "plugins")
     catalog_before = (empty_forge / "catalog" / "plugins.json").read_bytes()
-    real_replace = importer_module.os.replace
+    real_replace = transactions_module.os.replace
     calls = 0
 
     def fail_once(source, destination):
@@ -526,7 +527,7 @@ def test_apply_preserves_original_tree_at_each_publish_failure(
             raise OSError("simulated publish failure")
         real_replace(source, destination)
 
-    monkeypatch.setattr(importer_module.os, "replace", fail_once)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_once)
     with pytest.raises(OSError, match="simulated publish failure"):
         apply_import(
             empty_forge, import_request.model_copy(update={"expected_sha256": plan.plan_sha256})
@@ -554,7 +555,7 @@ def test_failed_rollback_preserves_original_backup(
     import_request = request(second, version="0.2.0")
     plan = plan_import(empty_forge, import_request)
     git(empty_forge, "checkout", "-B", f"skill/{plan.plugin}/{plan.skill}")
-    real_replace = importer_module.os.replace
+    real_replace = transactions_module.os.replace
     real_rmtree = importer_module.shutil.rmtree
 
     def fail_replace(source, destination):
@@ -569,7 +570,7 @@ def test_failed_rollback_preserves_original_backup(
             raise OSError("simulated cleanup failure")
         return real_rmtree(path, *args, **kwargs)
 
-    monkeypatch.setattr(importer_module.os, "replace", fail_replace)
+    monkeypatch.setattr(transactions_module.os, "replace", fail_replace)
     monkeypatch.setattr(importer_module.shutil, "rmtree", fail_cleanup)
     with pytest.raises(ForgeError, match="recovery files preserved") as error:
         apply_import(

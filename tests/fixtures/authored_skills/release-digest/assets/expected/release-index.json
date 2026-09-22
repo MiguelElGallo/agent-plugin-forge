@@ -1,0 +1,15 @@
+{
+  "change_count": 4,
+  "reference_ids": [
+    "#17",
+    "#18",
+    "PR-42"
+  ],
+  "schema_version": 1,
+  "section_counts": {
+    "changes": 2,
+    "highlights": 1,
+    "upgrade_notes": 1
+  },
+  "version": "2.4.0"
+}

@@ -32,6 +32,66 @@ def test_frontmatter_allows_separator_inside_quoted_value(skill_source: Path) ->
     )
 
 
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        ("1: numeric\nextra: text", "mapping keys must be strings"),
+        ("null: null key", "mapping keys must be strings"),
+        ("true: boolean key", "mapping keys must be strings"),
+        ("? [complex, key]\n: value", "mapping keys must be strings"),
+        ("description: replacement", "duplicate mapping key 'description'"),
+        ("metadata: {owner: first, owner: second}", "duplicate mapping key 'owner'"),
+        ("metadata: {1: value}", "mapping keys must be strings"),
+        (
+            "metadata: {<<: {owner: first, owner: second}}",
+            "duplicate mapping key 'owner'",
+        ),
+        (
+            "metadata: {<<: {owner: first}, <<: {role: second}}",
+            "duplicate mapping key '<<'",
+        ),
+        ("metadata: {items: [{owner: first, owner: second}]}", "duplicate mapping key 'owner'"),
+    ],
+)
+def test_frontmatter_rejects_ambiguous_mapping_keys(
+    skill_source: Path, fields: str, message: str
+) -> None:
+    content = f"---\nname: sample-skill\ndescription: Original.\n{fields}\n---\nInstructions.\n"
+    with pytest.raises(ForgeError, match=message):
+        parse_skill_frontmatter(skill_source / "SKILL.md", content=content.encode())
+
+
+def test_frontmatter_preserves_merge_precedence_and_aliases(skill_source: Path) -> None:
+    content = (
+        "---\nname: sample-skill\ndescription: Original.\nmetadata:\n"
+        "  <<: [&base {owner: first, region: west}, {owner: second, role: review}, *base]\n"
+        "  owner: explicit\n---\nInstructions.\n"
+    )
+    result = parse_skill_frontmatter(skill_source / "SKILL.md", content=content.encode())
+    assert result["metadata"] == {"owner": "explicit", "region": "west", "role": "review"}
+
+
+def test_frontmatter_allows_aliases_without_changing_global_safe_loader(skill_source: Path) -> None:
+    import yaml
+
+    content = (
+        "---\nname: sample-skill\ndescription: &description Original.\n"
+        "metadata: {description: *description}\n---\nInstructions.\n"
+    )
+    result = parse_skill_frontmatter(skill_source / "SKILL.md", content=content.encode())
+    assert result["metadata"] == {"description": "Original."}
+    assert yaml.safe_load("name: first\nname: second") == {"name": "second"}
+
+
+def test_frontmatter_recursive_alias_reports_contract_error(skill_source: Path) -> None:
+    content = (
+        "---\nname: sample-skill\ndescription: Original.\n"
+        "metadata: &metadata {self: *metadata}\n---\nInstructions.\n"
+    )
+    with pytest.raises(ForgeError, match="metadata must map strings to strings"):
+        parse_skill_frontmatter(skill_source / "SKILL.md", content=content.encode())
+
+
 @pytest.mark.parametrize("value", ["1.0.0-01", "1.0.0-alpha..1"])
 def test_strict_semver_rejects_invalid_values(value: str) -> None:
     with pytest.raises(ForgeError, match="Semantic Versioning"):

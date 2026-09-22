@@ -26,6 +26,8 @@ To inspect the selection, ask the agent to run the bundled helper with `--show-o
 
 ## A branch helper refuses the checkout
 
+If `forge doctor --json` reports a missing Forge checkout, it still returns local tool diagnostics and exits with status `2`. Change into the selected Forge checkout, or let the installed skill bootstrap it, then repeat doctor. The installed `forge` executable can diagnose this failure from another directory; `uv run forge` depends on the launcher's project environment.
+
 For `Refusing to create a branch from a dirty worktree`, inspect `git status --short` and preserve or finish your existing work before returning to a clean `main`.
 
 If doctor reports configured Git filters or submodules, it has deliberately left those checks incomplete. Review that repository configuration before inspecting it with ordinary Git commands, which may invoke filters. Doctor does not disable or rewrite your configuration.
@@ -41,7 +43,7 @@ Then repeat the appropriate [branch helper](../reference/cli.md). If fast-forwar
 
 ## The review-plan hash no longer matches
 
-`--expected-sha256 must match the reviewed full-plan hash` means the recomputed plan differs from the approved one. Repeat the original import command without `--apply`, adding `--json`, and compare it with the saved plan.
+`--expected-sha256 must match the reviewed full-plan hash` means the recomputed plan differs from the approved one. Repeat the original import or update command without `--apply`, adding `--json`, and compare it with the saved plan.
 
 The diagnostic includes the recomputed hash and import date. It lists recovery steps rather than guessing which field changed. Do not copy that new hash into an apply command without reviewing the changed plan.
 
@@ -53,7 +55,13 @@ The JSON artifact is for review; Forge does not accept it as an apply input. See
 
 `New plugins require: ...` lists the missing destination fields. A new plugin needs category, version, description, and author, while a bundle inherits category and requires a higher version. Every import also needs source identity, immutable revision, and license evidence. Follow [import an existing skill](import-skill.md) or [record a new skill's source](create-skill.md#record-the-source-and-license).
 
-For malformed frontmatter, mismatched names, links, unsafe paths, or missing license evidence, correct your own source in its staging workspace and review it again. An invalid third-party skill needs a separately reviewed source correction before intake. Forge does not normalize imported content for you.
+For malformed frontmatter, mismatched names, links, unsafe paths, or missing license evidence, correct your own source in its staging workspace and review it again. YAML mapping keys must be strings and unique, including inside `metadata`. Numeric keys and repeated fields produce diagnostics instead of silently replacing a value. An invalid third-party skill needs a separately reviewed source correction before intake. Forge does not normalize imported content for you.
+
+## An existing skill cannot be imported again
+
+Use [`forge update`](../reference/cli.md#forge-update) with the existing destination plugin and a higher plugin version. The selected source skill must match the existing skill name, and current provenance must validate. Import deliberately refuses to overwrite the destination.
+
+An update preserves the skill's SPDX expression. If the expression changes, or `licenses/<skill>/LICENSE` is already shared or unowned, resolve that change through a separately reviewed plugin-wide contributor workflow. Do not delete provenance or license evidence to force an update through.
 
 ## Generated marketplace output is stale
 
@@ -68,6 +76,12 @@ Review the generated diff. Both marketplace files are derived outputs; make meta
 
 ## Marketplace generation reports a rollback failure
 
-If generation fails while replacing an output, Forge attempts to restore every output it touched. If any restoration fails, the error identifies a `.forge-generate-*` recovery directory in the checkout. Keep that directory: its `backups/` tree contains originals that could not be restored, under their repository-relative paths.
+If generation fails or is cancelled with Ctrl-C while replacing an output, Forge attempts to restore every output it touched. If any restoration fails or is interrupted, the error identifies a `.forge-generate-*` recovery directory in the checkout. Keep that directory: its `backups/` tree contains originals that could not be restored, under their repository-relative paths. Other outputs may already have been restored.
 
 Inspect the reported error and filesystem permissions, recover any remaining originals from `backups/`, then run `uv run forge generate` and `uv run forge check`. Remove the recovery directory only after verifying the outputs and preserving any files you need.
+
+## Import or update reports a rollback failure
+
+Keep the reported `.forge-import-*` directory. Its `backup/` may contain the previous plugin, and `catalog-backup.json` may contain the previous catalog. Compare these with the installed plugin and `catalog/plugins.json` before restoring anything: recovery may already have restored one target, and a copied catalog backup may match the catalog still in place. Fix the reported filesystem problem, restore remaining originals, then run `uv run forge generate` and `uv run forge check`. Remove recovery files only after verifying the checkout.
+
+When cancellation is handled and rollback succeeds, the original cancellation is reported and backups are cleaned up. Forced termination or a power loss cannot run this recovery code. If a `.forge-import-*` or `.forge-generate-*` directory remains after such an interruption, preserve it and inspect both installed files and backups before retrying.

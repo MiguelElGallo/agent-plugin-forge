@@ -1,6 +1,6 @@
 # Validate and release the forge
 
-The `Check` workflow runs the same repository gate on pull requests and pushes to `main`. Unit and integration tests run on Linux, macOS, and Windows. Third-party actions are pinned to full commits.
+The `Check` workflow runs the repository gate on pull requests and pushes to `main`. Unit and integration tests run on Linux, macOS, and Windows. On each platform with Python 3.12, CI also builds the Python distributions, installs the wheel into an isolated environment, and smoke-tests the installed import and update workflow. Third-party actions are pinned to full commits.
 
 ## Local release gate
 
@@ -14,9 +14,18 @@ uv run pytest
 uv run forge generate --check
 uv run forge check
 uv run zensical build --clean --strict
+uv run python scripts/smoke_wheel.py --output-dir "$PWD/release-candidate"
 ```
 
 Pydantic owns forge-specific catalog, provenance, marketplace, and MCP semantic contracts. Vendored JSON Schema remains authoritative for Agent Plugins `plugin.json` and `mcp.json`. Schema bytes are pinned by complete checksums for offline validation.
+
+The default `ty check` scope includes the CLI, tests, benchmarks, Forge's explicitly listed bootstrap helper, examples, and repository scripts. Imported plugins are outside this scope and retain their own runtime dependencies.
+
+The wheel smoke check builds the wheel from the source distribution and installs it outside the source checkout. In a disposable Forge checkout with a local Git origin, the installed CLI creates review branches, imports two authored skills into one plugin, and updates one skill after reviewing its exact plan and `--diff` preview. It checks added, removed, changed, and executable files, rejects incorrect hashes and plans made stale by source changes without altering the checkout, and validates generated marketplaces and refreshed provenance. The companion skill, shared license, MCP files, assets, and empty working directory must survive unchanged. Intake never executes source scripts or MCP servers. After package validation, the smoke runs the two reviewed, standard-library fixture renderers from their installed skill paths and checks the resulting Markdown, JSON, and SVG against expected bytes and semantic values. These packaging and behavior checks complement client acceptance below.
+
+Use a new output directory beneath an existing directory, without symlinks or Windows reparse points in its path. `--output-dir` refuses existing destinations, including empty directories, and only retains files after every smoke check passes. Without the option, all distributions and fixture outputs remain temporary. The retained directory contains the exact tested `.whl` and `.tar.gz`, `SHA256SUMS`, `smoke-report.json`, and six fixture files under `fixtures/`. The report records archive and fixture hashes, the actual checked-out Git commit, and a digest of tracked and unignored untracked paths, raw bytes, and executable flags. `source.git_status_dirty` reports Git's normal status; `source.matches_commit` independently compares those working files to the committed tree. The latter catches changes hidden by `assume-unchanged`, `skip-worktree`, and disabled file-mode checks. Raw byte comparison is conservative for checkouts that convert line endings or use content filters: such checkouts cannot claim a committed-source match from this report. Source changes during qualification or changed archive bytes stop retention. Symlinks, Windows reparse points, and other non-regular source files are refused when retaining artifacts.
+
+CI retains a separate `distributions-OS-python-VERSION-COMMIT` artifact for each Python 3.12 platform for 14 days, including the invented skill outputs. The report records available GitHub run identity and the pull request head separately: pull request checks usually test a generated merge commit. A successful smoke report is packaging evidence, not proof that the entire release gate passed. Dirty local builds are explicitly marked `dirty: true`; they are useful for development checks but are not release candidates.
 
 When updating Python libraries, review their supported Python versions and migration notes, update `pyproject.toml`, and run `uv lock --upgrade` followed by the local gate. The project supports Python 3.11 and later; CI also tests the minimum version. Subprocess coverage uses `[tool.coverage.run] patch = ["subprocess"]`, as required by [pytest-cov 7](https://pytest-cov.readthedocs.io/en/latest/subprocess-support.html).
 
@@ -30,7 +39,8 @@ Before release, record exact versions and test both the installed user journey a
 2. run the packaged bootstrap helper with isolated settings: verify that first use asks for a destination before creating a checkout, save a confirmed repository, reuse it from another project, and check overrides and explicit default replacement; then verify temporary creation, persistent checkout reuse, clean `main`, and exact revision against an isolated Git remote;
 3. install the same package in isolated Copilot CLI and Codex homes;
 4. open a disposable contributor clone in VS Code and run the manual tutorial commands;
-5. register a local portable fixture using [`chat.pluginLocations`](../tutorials/use-in-vscode.md), confirm its skill and MCP server, and call a credential-free tool.
+5. register a local portable fixture using [`chat.pluginLocations`](../tutorials/use-in-vscode.md) and confirm skill discovery. Separately start its MCP server, verify that VS Code expands `${PLUGIN_ROOT}` and `${PLUGIN_DATA}` in the portable configuration and supplies both subprocess environment variables, and call a credential-free tool;
+6. package `release-digest` and `status-chart` as separate disposable plugins with reviewed Forge import plans. Install both from a local marketplace in Codex and load both through VS Code's local plugin workflow. Invoke each packaged skill with its bundled sample input, compare the resulting Markdown, JSON, and SVG files with the packaged expected artifacts, and remove temporary client registrations after the check.
 
 Marketplace command pairs:
 
@@ -58,4 +68,6 @@ Private-marketplace qualification requires a disposable private GitHub.com or Gi
 
 Merge only the reviewed head SHA after every required check succeeds. Then verify clean `main`, the live GitHub branch protections or ruleset, generated marketplace bytes, a fresh marketplace install, and the deployed Zensical site. Documentation deploys only from `main`.
 
-Build the Python wheel and source distribution from the reviewed release tree with `uv build`, and smoke-test the wheel in an isolated environment. Tag the verified merged commit as `vVERSION` and publish a GitHub release containing both archives and their `SHA256SUMS`. Read back the release tag, asset hashes, marketplace version, and deployed documentation. Plugin consumers install from the Git marketplace; the Python archives provide the Forge CLI. This workflow does not publish to PyPI.
+Run the local release gate from the clean, verified merged commit and retain its distributions with `--output-dir`. Alternatively, download the artifact from the successful `main` workflow for that exact commit. Confirm `smoke-report.json` has `smoke_passed: true`, `source.dirty: false`, `source.matches_commit: true`, and `source.commit` equal to the commit being tagged. A pull request merge-ref artifact does not establish that it was built from the final merged commit.
+
+Verify both retained archive files against `SHA256SUMS` and the report's `archives` mapping; verify `fixtures/` against `fixture_artifacts` in the report. Tag that verified commit as `vVERSION` and publish a GitHub release containing those same `.whl` and `.tar.gz` files, `SHA256SUMS`, and `smoke-report.json`. Do not rebuild between qualification and publication; a rebuild needs its own smoke check and hashes. Read back the release tag, asset hashes, marketplace version, and deployed documentation. Plugin consumers install from the Git marketplace; the Python archives provide the Forge CLI. This workflow does not publish to PyPI.

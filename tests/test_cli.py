@@ -428,7 +428,7 @@ def test_doctor_escapes_human_fields_and_preserves_json_values(
 ) -> None:
     detail = "café\nforged check\x1b[2J\x9b2K"
     report = {"ready": True, "checks": [{"status": "ok", "name": "path", "detail": detail}]}
-    monkeypatch.setattr(cli_module, "diagnose", lambda repo: report)
+    monkeypatch.setattr(cli_module, "diagnose", lambda: report)
     monkeypatch.chdir(empty_forge)
 
     human = runner.invoke(app, ["doctor"])

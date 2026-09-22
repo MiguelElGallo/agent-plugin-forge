@@ -60,17 +60,42 @@ Choose the workflow from the actual change:
 | --- | --- |
 | Add a new skill as a new plugin | `forge branch`, then the reviewed `forge import` plan |
 | Add a different skill to a bundle | `forge branch`, then `forge import` with a higher bundle version |
-| Change an existing skill's contents | A reviewed contributor change on `skill/<plugin>/<skill>` |
+| Change an existing skill's contents | `forge branch`, then the reviewed `forge update` plan |
 | Change MCP or shared plugin configuration | `forge plugin-branch`, then a reviewed plugin change |
 | Upgrade Forge code or adjust catalog identity | `forge maintenance-branch` and the complete release gate |
 
-The importer adds destinations; it has no overwrite or in-place update command. Passing a higher version still refuses an existing skill directory. Do not delete the destination to bypass that check.
+`forge import` adds destinations and refuses an existing skill directory, even with a higher version. Use `forge update` to replace an existing skill; do not delete the destination or its provenance to bypass validation.
 
-For an existing skill revision, have a maintainer prepare the contributor change from the approved source revision. Update only the reviewed skill files and modes, the plugin version, and the corresponding [provenance and license evidence](../reference/metadata.md). Provenance must describe the new source revision and subpath, import date, license, complete file hashes and executable modes, tree hash, and any reviewed transformations. The current CLI does not automate that replacement or provenance rewrite. Review the source-to-package diff before accepting recalculated hashes.
+Stage the reviewed source revision locally, inspect every changed file and removal, and verify that the files match the declared immutable revision. From the selected clean, current Forge checkout, create the scoped branch and prepare a no-write plan:
+
+```bash
+uv run forge branch --plugin incident-summary --skill incident-summary
+uv run forge update \
+  --source /absolute/path/to/skill-sources/skills/incident-summary \
+  --plugin incident-summary \
+  --version 0.2.0 \
+  --license MIT \
+  --license-file /absolute/path/to/skill-sources/LICENSE \
+  --origin https://github.company.example/platform/skill-sources.git \
+  --revision "$(git -C /absolute/path/to/skill-sources rev-parse HEAD)" \
+  --source-subpath skills/incident-summary
+```
+
+Replace the example values with the actual source, license, and a version higher than the current destination plugin. The source skill name must match the existing destination. For a source plugin with several skills, point `--source` at its root and add `--source-skill incident-summary`.
+
+Review the plan's source identity, selected Forge origin, old and new versions, file additions, removals, content and executable-mode changes, license destination, and exact hash. Save `--json` output outside the checkout if needed. After approval of that hash, repeat the same command with `--apply --expected-sha256 HASH`. Preserve the original date with `--imported-at YYYY-MM-DD` when applying on another day. A newly computed hash does not carry forward approval.
+
+Add `--diff` to the planning command to see instruction and license text changes alongside file and executable-mode changes. It also compares the previous and proposed source origin, revision, subpath, import date, and transformations. It is read-only and does not change the plan hash. Review the full contents of any files whose diffs are omitted because they are binary or exceed the preview limits. If the provenance comparison is omitted, compare the installed `provenance/<skill>.json` with the proposed values in a separate `--json` plan's `review_payload`. Use the printed apply command after approval; `--diff` cannot be combined with `--apply` or `--json`.
+
+The update replaces the selected skill tree and its [provenance](../reference/metadata.md), removes obsolete skill files, and increases the plugin version together. It preserves other bundle skills, MCP configuration, and shared manifest fields. The skill's existing SPDX expression must stay the same; license-expression or shared configuration changes need a plugin-wide contributor review. New evidence goes to `licenses/<skill>/LICENSE`, while shared licenses and old license files outside the replaced skill tree remain intact. Evidence inside the tree follows its reviewed file changes, but an update cannot invalidate another skill's evidence. See [`forge update`](../reference/cli.md#forge-update) for required options and evidence-path conflicts.
+
+Forge validates the staged package's MCP references, manifest, and provenance before replacing installed files. It rejects changes that break a packaged command or working directory; staging failures leave the installed package intact. Existing directories outside the replaced skill tree, including empty MCP working directories, are preserved.
 
 Run generation, the complete release gate, and a focused behavior check in the target client before merging. A client install/update is a separate operation from this repository maintenance.
 
-Give simultaneous contributions separate checkouts or worktrees. An import plan binds the catalog and destination state: if those inputs change before application, recompute and review the plan. If a later rebase changes the applied result, review that final diff and rerun checks before approving its new merge head.
+Approval to apply an update covers that local change. Obtain explicit authorization for committing, pushing, and opening a pull request against the selected origin. Merge remains separately authorized against the reviewed head SHA and green required checks.
+
+Give simultaneous contributions separate checkouts or worktrees. Import and update plans bind the catalog and destination state, including empty directory paths: if those inputs change before application, recompute and review the plan. Saved bundle plans created before directory tracking need a fresh review. If a later rebase changes the applied result, review that final diff and rerun checks before approving its new merge head.
 
 ## Distribute and verify each release
 

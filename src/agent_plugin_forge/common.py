@@ -11,6 +11,8 @@ from typing import Any
 import yaml
 from license_expression import ExpressionError, get_spdx_licensing
 from semantic_version import Version
+from yaml.constructor import ConstructorError
+from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from .errors import ForgeError, diagnostic_value
 from .filesystem import file_hashes as _file_hashes
@@ -20,6 +22,50 @@ PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 PLUGIN_NAME_RE = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 SKILL_NAME_RE = re.compile(r"^(?!.*--)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
 SPDX_LICENSING = get_spdx_licensing()
+
+
+class _SkillLoader(yaml.SafeLoader):
+    """Reject ambiguous mapping keys before SafeLoader expands YAML merges."""
+
+    def construct_document(self, node: Node) -> Any:
+        """Validate original mappings once, then retain safe YAML construction."""
+
+        pending = [node]
+        visited: set[int] = set()
+        while pending:
+            current = pending.pop()
+            if id(current) in visited:
+                continue
+            visited.add(id(current))
+            if isinstance(current, SequenceNode):
+                pending.extend(current.value)
+            elif isinstance(current, MappingNode):
+                seen: set[tuple[str, str]] = set()
+                for key, value in current.value:
+                    if not isinstance(key, ScalarNode) or key.tag not in {
+                        "tag:yaml.org,2002:str",
+                        "tag:yaml.org,2002:merge",
+                        "tag:yaml.org,2002:value",
+                    }:
+                        raise ConstructorError(
+                            "while constructing a mapping",
+                            current.start_mark,
+                            "mapping keys must be strings",
+                            key.start_mark,
+                        )
+                    # YAML's '=' key becomes a string; '<<' is a merge operator.
+                    tag = "merge" if key.tag == "tag:yaml.org,2002:merge" else "string"
+                    identity = (tag, key.value)
+                    if identity in seen:
+                        raise ConstructorError(
+                            "while constructing a mapping",
+                            current.start_mark,
+                            f"duplicate mapping key {key.value!r}",
+                            key.start_mark,
+                        )
+                    seen.add(identity)
+                    pending.append(value)
+        return super().construct_document(node)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -105,7 +151,7 @@ def parse_skill_frontmatter(skill_md: Path, *, content: bytes | None = None) -> 
     frontmatter = text[4:closing]
     body = text[closing + 5 :]
     try:
-        value = yaml.safe_load(frontmatter)
+        value = yaml.load(frontmatter, Loader=_SkillLoader)
     except yaml.YAMLError as exc:
         raise ForgeError(
             f"{diagnostic_value(skill_md)} has invalid YAML frontmatter: {diagnostic_value(exc)}"

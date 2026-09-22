@@ -631,3 +631,6 @@ class ImportPlan(StrictModel):
     review_payload: dict[str, Any]
     files: dict[str, str]
     file_modes: dict[str, bool]
+    operation: Literal["import", "update"] = "import"
+    changes: dict[str, list[str]] = Field(default_factory=dict)
+    update_metadata: dict[str, Any] = Field(default_factory=dict)

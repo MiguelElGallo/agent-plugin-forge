@@ -57,3 +57,17 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run pytest
+      - name: Build and smoke-test the installed import and update workflow
+        if: matrix.python == '3.12'
+        env:
+          FORGE_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: uv run python scripts/smoke_wheel.py --output-dir "${{ runner.temp }}/forge-release"
+      - name: Retain the tested distributions and hashes
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: distributions-${{ matrix.os }}-python-${{ matrix.python }}-${{ github.sha }}
+          path: ${{ runner.temp }}/forge-release/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
