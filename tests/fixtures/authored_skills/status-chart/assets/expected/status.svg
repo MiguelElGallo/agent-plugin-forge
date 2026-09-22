@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 282" role="img" aria-labelledby="chart-title chart-description">
+  <title id="chart-title">Review status &lt;Q3&gt; &amp; delivery</title>
+  <desc id="chart-description">4 categories; total 12. Bars preserve the supplied category order.</desc>
+  <rect width="720" height="282" fill="#ffffff" />
+  <text x="24" y="32" font-size="18">Review status &lt;Q3&gt; &amp; delivery</text>
+  <text x="24" y="80" font-size="14">Ready</text>
+  <rect x="210" y="60" width="420" height="28" fill="#2563eb" data-label="Ready" data-count="8" />
+  <text x="650" y="80" font-size="14">8</text>
+  <text x="24" y="128" font-size="14">In review</text>
+  <rect x="210" y="108" width="157" height="28" fill="#7c3aed" data-label="In review" data-count="3" />
+  <text x="650" y="128" font-size="14">3</text>
+  <text x="24" y="176" font-size="14">Needs résumé</text>
+  <rect x="210" y="156" width="52" height="28" fill="#d97706" data-label="Needs résumé" data-count="1" />
+  <text x="650" y="176" font-size="14">1</text>
+  <text x="24" y="224" font-size="14">Blocked &amp; waiting</text>
+  <rect x="210" y="204" width="0" height="28" fill="#64748b" data-label="Blocked &amp; waiting" data-count="0" />
+  <text x="650" y="224" font-size="14">0</text>
+</svg>

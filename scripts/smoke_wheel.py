@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -62,8 +63,10 @@ def fixture_revision(root: Path) -> str:
     return f"sha256:{digest}"
 
 
-def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str, str]) -> None:
-    """Exercise reviewed imports and an update using only the installed CLI."""
+def smoke_skill_workflow(
+    forge: Path, repo: Path, temporary: Path, env: dict[str, str]
+) -> tuple[Path, dict[str, str]]:
+    """Exercise reviewed imports, an update, and authored skill artifact rendering."""
 
     git = shutil.which("git")
     if git is None:
@@ -133,20 +136,15 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
     git_command("push", "--quiet", "-u", "origin", "main")
 
     sources = temporary / "authored sources"
-    source = sources / "sample-skill"
-    companion = sources / "companion"
-    (source / "scripts").mkdir(parents=True)
-    companion.mkdir()
-    for path in (source, companion):
-        (path / "SKILL.md").write_bytes(
-            f"---\nname: {path.name}\ndescription: Authored smoke fixture.\n---\n\n"
-            "Read the supplied text. Never execute the fixture scripts.\n".encode()
-        )
+    authored = repo / "tests/fixtures/authored_skills"
+    source = sources / "release-digest"
+    companion = sources / "status-chart"
+    shutil.copytree(authored / source.name, source)
+    shutil.copytree(authored / companion.name, companion)
     (source / "changed.txt").write_bytes(b"Original content.\n")
     (source / "removed.txt").write_bytes(b"Obsolete content.\n")
     (source / "kept.txt").write_bytes(b"Preserved content.\n")
-    helper = source / "scripts/helper.py"
-    helper.write_bytes(b'raise RuntimeError("Smoke fixture scripts must never execute")\n')
+    helper = source / "scripts/render.py"
     helper.chmod(0o644)
     license_file = sources / "LICENSE"
     original_license = (repo / "LICENSE").read_bytes()
@@ -201,12 +199,12 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
                 raise RuntimeError("The installed diff preview changed the fixture or its source.")
             expected_preview = (
                 f"review plan sha256 {plan['plan_sha256']}",
-                "--- a/skills/sample-skill/SKILL.md",
-                "+++ b/skills/sample-skill/SKILL.md",
-                "-Read the supplied text. Never execute the fixture scripts.",
-                "+Read the revised text. Never execute the fixture scripts.",
+                "--- a/skills/release-digest/SKILL.md",
+                "+++ b/skills/release-digest/SKILL.md",
+                "-Use this authored test fixture when asked",
+                "+Use this revised authored test fixture when asked",
                 "License evidence comparison (previous evidence -> proposed evidence)",
-                "+++ b/licenses/sample-skill/LICENSE",
+                "+++ b/licenses/release-digest/LICENSE",
                 "+Additional fixture author: Update smoke test.",
             )
             if any(text not in preview for text in expected_preview):
@@ -242,9 +240,73 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
         forge_command("check")
         return plan
 
+    validated_artifacts: dict[str, str] = {}
+
+    def render_fixture_skill(skill: str, run_name: str) -> None:
+        """Run a reviewed helper only after import validation, then inspect exact artifacts."""
+
+        installed = plugin / "skills" / skill
+        output = artifact_root / run_name
+        command = [
+            sys.executable,
+            "-I",
+            str(installed / "scripts/render.py"),
+            "--input",
+            str(installed / "assets/input.json"),
+            "--output-dir",
+            str(output),
+        ]
+        checkout_before = snapshot(fixture)
+        run(command, cwd=installed, env=fixture_env)
+        expected = installed / "assets/expected"
+        output_before = snapshot(output)
+        if output_before != snapshot(expected):
+            raise RuntimeError(f"Installed {skill} artifacts differ from reviewed expected bytes.")
+        validated_artifacts.update(
+            {
+                f"{run_name}/{name}": hashlib.sha256(content).hexdigest()
+                for name, (content, _) in output_before.items()
+                if content is not None
+            }
+        )
+        run(command, cwd=installed, env=fixture_env, expected=2)
+        if snapshot(output) != output_before or snapshot(fixture) != checkout_before:
+            raise RuntimeError(f"Installed {skill} renderer overwrote artifacts or checkout files.")
+        if skill == "release-digest":
+            index = json.loads((output / "release-index.json").read_bytes())
+            notes = (output / "release-notes.md").read_text(encoding="utf-8")
+            if (
+                index["version"] != "2.4.0"
+                or index["change_count"] != 4
+                or index["reference_ids"] != ["#17", "#18", "PR-42"]
+                or "café/報告.md" not in notes
+            ):
+                raise RuntimeError("Installed release-digest produced the wrong release evidence.")
+        else:
+            summary = json.loads((output / "status-summary.json").read_bytes())
+            chart = ET.parse(output / "status.svg").getroot()
+            title = chart.find("{http://www.w3.org/2000/svg}title")
+            bars = [
+                element
+                for element in chart.findall("{http://www.w3.org/2000/svg}rect")
+                if "data-label" in element.attrib
+            ]
+            if (
+                summary["total"] != 12
+                or summary["max_count"] != 8
+                or [bar.attrib["width"] for bar in bars] != ["420", "157", "52", "0"]
+                or title is None
+                or title.text != "Review status <Q3> & delivery"
+            ):
+                raise RuntimeError("Installed status-chart produced the wrong chart evidence.")
+
+    artifact_root = temporary / "fixture artifacts"
+    artifact_root.mkdir()
     review_and_apply("import", source, "0.1.0")
+    render_fixture_skill(source.name, "release-digest-initial")
     finish_branch(source.name)
     review_and_apply("import", companion, "0.2.0")
+    render_fixture_skill(companion.name, "status-chart")
     (plugin / "shared/work").mkdir(parents=True)
     (plugin / "shared/asset.txt").write_bytes(b"Shared plugin asset.\n")
     (plugin / "shared/server.py").write_bytes(
@@ -271,13 +333,18 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
     before = snapshot(plugin)
     catalog_before = (fixture / "catalog/plugins.json").read_bytes()
     manifest_before = json.loads((plugin / "plugin.json").read_bytes())
-    (source / "SKILL.md").write_bytes(
-        b"---\nname: sample-skill\ndescription: Revised authored smoke fixture.\n---\n\n"
-        b"Read the revised text. Never execute the fixture scripts.\n"
+    (source / "SKILL.md").write_text(
+        (source / "SKILL.md")
+        .read_text(encoding="utf-8")
+        .replace(
+            "Use this authored test fixture when asked",
+            "Use this revised authored test fixture when asked",
+        ),
+        encoding="utf-8",
+        newline="\n",
     )
     (source / "changed.txt").write_bytes(b"Revised content.\n")
     (source / "removed.txt").unlink()
-    (source / "references").mkdir()
     (source / "references/added.txt").write_bytes(b"New supporting content.\n")
     if os.name != "nt":
         helper.chmod(0o755)
@@ -285,19 +352,20 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
         original_license + b"\nAdditional fixture author: Update smoke test.\n"
     )
     plan = review_and_apply("update", source, "0.3.0")
+    render_fixture_skill(source.name, "release-digest-updated")
     expected_changes = {
         "added": ["references/added.txt"],
         "removed": ["removed.txt"],
         "modified": ["SKILL.md", "changed.txt"],
-        "mode_changed": ["scripts/helper.py"] if os.name != "nt" else [],
+        "mode_changed": ["scripts/render.py"] if os.name != "nt" else [],
     }
     if plan["changes"] != expected_changes:
         raise RuntimeError(f"Unexpected installed update review: {plan['changes']}")
     after = snapshot(plugin)
     for path, value in before.items():
-        if path.startswith("skills/sample-skill/") or path in {
+        if path.startswith("skills/release-digest/") or path in {
             "plugin.json",
-            "provenance/sample-skill.json",
+            "provenance/release-digest.json",
         }:
             continue
         if after.get(path) != value:
@@ -307,7 +375,7 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
     manifest = json.loads((plugin / "plugin.json").read_bytes())
     if manifest != {**manifest_before, "version": "0.3.0"}:
         raise RuntimeError("The update changed manifest fields beyond its version.")
-    record = json.loads((plugin / "provenance/sample-skill.json").read_bytes())
+    record = json.loads((plugin / "provenance/release-digest.json").read_bytes())
     if (
         record["files"] != plan["files"]
         or record["fileModes"] != plan["file_modes"]
@@ -315,12 +383,19 @@ def smoke_skill_workflow(forge: Path, repo: Path, temporary: Path, env: dict[str
         or record["revision"] != plan["review_payload"]["revision"]
         or record["licenseEvidence"]
         != {
-            "path": "licenses/sample-skill/LICENSE",
+            "path": "licenses/release-digest/LICENSE",
             "sha256": hashlib.sha256(license_file.read_bytes()).hexdigest(),
         }
-        or (plugin / "licenses/sample-skill/LICENSE").read_bytes() != license_file.read_bytes()
+        or (plugin / "licenses/release-digest/LICENSE").read_bytes() != license_file.read_bytes()
     ):
         raise RuntimeError("The update did not refresh the reviewed provenance and license bytes.")
+    artifacts = capture_fixture_artifacts(artifact_root)
+    final_hashes = {
+        name: hashlib.sha256(content).hexdigest() for name, content in artifacts.items()
+    }
+    if final_hashes != validated_artifacts:
+        raise RuntimeError("Fixture artifacts changed after installed skill validation.")
+    return artifact_root, validated_artifacts
 
 
 def archive_hashes(archives: list[Path]) -> dict[str, str]:
@@ -341,42 +416,120 @@ def is_linklike(path: Path) -> bool:
     )
 
 
-def source_state(repo: Path, env: dict[str, str]) -> dict[str, Any]:
-    """Bind Git identity and dirtiness to visible source bytes, modes, and deletions."""
+def read_regular_bytes(path: Path) -> tuple[bytes, int]:
+    """Open a regular file without following POSIX links or blocking on FIFOs."""
 
-    def git(*arguments: str) -> str:
-        """Read the actual checkout independently of inherited Git overrides."""
+    before = path.lstat()
+    if is_linklike(path) or not stat.S_ISREG(before.st_mode):
+        raise RuntimeError(f"Cannot read a linked or non-regular file: {path}")
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    with os.fdopen(os.open(path, flags), "rb") as file:
+        opened = os.fstat(file.fileno())
+        if not stat.S_ISREG(opened.st_mode) or (
+            os.name != "nt" and (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+        ):
+            raise RuntimeError(f"File changed type or identity before reading: {path}")
+        return file.read(), opened.st_mode
+
+
+def capture_fixture_artifacts(root: Path) -> dict[str, bytes]:
+    """Read only regular fixture files, retaining their exact relative paths and bytes."""
+
+    if is_linklike(root):
+        raise RuntimeError(f"Cannot retain a linked fixture directory: {root}")
+    captured: dict[str, bytes] = {}
+    for path in sorted(root.rglob("*")):
+        if is_linklike(path):
+            raise RuntimeError(f"Cannot retain a linked fixture artifact: {path}")
+        if path.is_dir():
+            continue
+        if not stat.S_ISREG(path.lstat().st_mode):
+            raise RuntimeError(f"Cannot retain a non-regular fixture artifact: {path}")
+        captured[path.relative_to(root).as_posix()] = read_regular_bytes(path)[0]
+    return captured
+
+
+def source_state(repo: Path, env: dict[str, str]) -> dict[str, Any]:
+    """Bind visible source bytes and modes to the actual committed Git tree."""
+
+    def git(*arguments: str) -> bytes:
+        """Read raw Git output without changing NUL-delimited path bytes."""
 
         git_env = {key: value for key, value in env.items() if not key.startswith("GIT_")}
-        return run(["git", *arguments], cwd=repo, env=git_env).stdout
+        git_env["GIT_NO_REPLACE_OBJECTS"] = "1"
+        result = subprocess.run(
+            ["git", *arguments],
+            cwd=repo,
+            env=git_env,
+            capture_output=True,
+            check=False,
+            timeout=180,
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"Git {arguments!r} returned {result.returncode}: "
+                f"{result.stderr.decode(errors='backslashreplace')}"
+            )
+        return result.stdout
 
-    commit = git("rev-parse", "HEAD").strip()
+    commit = git("rev-parse", "HEAD").decode("ascii").strip()
     status = git("status", "--porcelain=v1", "-z", "--untracked-files=all")
     paths = git("ls-files", "--cached", "--others", "--exclude-standard", "-z")
+    committed: dict[str, tuple[str, str]] = {}
+    for entry in git("ls-tree", "-r", "-z", "HEAD").split(b"\0"):
+        if not entry:
+            continue
+        metadata, raw_path = entry.split(b"\t", 1)
+        mode, kind, object_id = metadata.decode("ascii").split(" ")
+        if kind != "blob" or mode not in {"100644", "100755"}:
+            raise RuntimeError(f"Cannot verify a non-regular Git file: {os.fsdecode(raw_path)!r}")
+        committed[os.fsdecode(raw_path)] = (mode, object_id)
     files: dict[str, Any] = {}
-    for relative in sorted(set(paths.rstrip("\0").split("\0")) - {""}):
+    mismatched = set(committed)
+    for relative in sorted({os.fsdecode(path) for path in paths.split(b"\0") if path}):
         path = repo / relative
         if any(is_linklike(parent) for parent in (path, *path.parents)):
             raise RuntimeError(
                 f"Cannot bind source through a symlink or reparse point: {relative!r}"
             )
         try:
-            mode = path.lstat().st_mode
+            content, mode = read_regular_bytes(path)
         except FileNotFoundError:
             files[relative] = None
             continue
-        if not stat.S_ISREG(mode):
-            raise RuntimeError(f"Cannot bind a non-regular source file: {relative!r}")
         files[relative] = {
-            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "sha256": hashlib.sha256(content).hexdigest(),
             "executable": bool(mode & 0o111),
         }
+        previous = committed.get(relative)
+        if previous is None:
+            mismatched.add(relative)
+            continue
+        committed_mode, object_id = previous
+        committed_bytes = git("cat-file", "blob", object_id)
+        mode_matches = (
+            committed_mode == "100644"
+            if os.name == "nt"
+            else (bool(mode & 0o111) == (committed_mode == "100755"))
+        )
+        if content == committed_bytes and mode_matches:
+            mismatched.discard(relative)
+    status_entries = [os.fsdecode(entry) for entry in status.split(b"\0") if entry]
+    matches_commit = not status_entries and not mismatched
     return {
         "commit": commit,
-        "dirty": bool(status),
-        "status_porcelain_v1": status.rstrip("\0").split("\0") if status else [],
+        "dirty": not matches_commit,
+        "git_status_dirty": bool(status_entries),
+        "matches_commit": matches_commit,
+        "commit_mismatch_paths": sorted(mismatched),
+        "status_porcelain_v1": status_entries,
         "tree_sha256": hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(),
-        "tree_scope": "Git tracked and unignored untracked file paths, bytes, and executable flags",
+        "tree_scope": "Git tracked and unignored untracked paths, raw bytes, and executable flags",
     }
 
 
@@ -399,8 +552,9 @@ def retain_archives(
     hashes: dict[str, str],
     source: dict[str, Any],
     env: dict[str, str],
+    fixture_artifacts: tuple[Path, dict[str, str]] | None = None,
 ) -> None:
-    """Export verified archive bytes and their smoke report only after all checks pass."""
+    """Export tested archives, authored skill artifacts, and a verified report."""
 
     destination = output_destination(destination)
     with tempfile.TemporaryDirectory(prefix=".forge-release-", dir=destination.parent) as directory:
@@ -411,13 +565,27 @@ def retain_archives(
             if hashlib.sha256(content).hexdigest() != hashes[archive.name]:
                 raise RuntimeError(f"Tested archive changed before retention: {archive.name}")
             (staged / archive.name).write_bytes(content)
+        fixture_hashes: dict[str, str] = {}
+        if fixture_artifacts is not None:
+            root, tested_hashes = fixture_artifacts
+            captured = capture_fixture_artifacts(root)
+            fixture_hashes = {
+                name: hashlib.sha256(content).hexdigest() for name, content in captured.items()
+            }
+            if fixture_hashes != tested_hashes:
+                raise RuntimeError("Fixture artifacts changed after installed skill validation.")
+            for relative, content in captured.items():
+                target = staged / "fixtures" / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
         checksums = "".join(f"{value}  {name}\n" for name, value in sorted(hashes.items()))
         (staged / "SHA256SUMS").write_text(checksums, encoding="utf-8", newline="\n")
         report = {
-            "schema_version": 1,
+            "schema_version": 2,
             "smoke_passed": True,
             "source": source,
             "archives": hashes,
+            "fixture_artifacts": fixture_hashes,
             "python": platform.python_version(),
             "platform": platform.platform(),
             "ci": {
@@ -440,7 +608,10 @@ def retain_archives(
         output_destination(destination)
         destination.mkdir()
         try:
-            names = [archive.name for archive in archives] + ["SHA256SUMS", "smoke-report.json"]
+            names = [archive.name for archive in archives]
+            if fixture_artifacts is not None:
+                names.append("fixtures")
+            names.extend(["SHA256SUMS", "smoke-report.json"])
             # A hard interruption can leave an incomplete directory, but never a success report
             # ahead of the archives and their checksums.
             for name in names:
@@ -452,7 +623,7 @@ def retain_archives(
 
 def build_and_smoke(
     repo: Path, temporary: Path, uv: str, env: dict[str, str]
-) -> tuple[list[Path], dict[str, str]]:
+) -> tuple[list[Path], dict[str, str], tuple[Path, dict[str, str]]]:
     """Build through an sdist and qualify the wheel's isolated installed workflow."""
 
     distributions = temporary / "dist"
@@ -501,10 +672,10 @@ def build_and_smoke(
     if report["ready"] or checkout["status"] != "error" or diagnosis.stderr:
         raise RuntimeError("Doctor did not return a clean JSON checkout failure.")
     run([str(forge), "check"], cwd=repo, env=env)
-    smoke_skill_workflow(forge, repo, temporary, env)
+    fixture_artifacts = smoke_skill_workflow(forge, repo, temporary, env)
     if archive_hashes(archives) != hashes:
         raise RuntimeError("Distribution bytes changed during smoke qualification.")
-    return archives, hashes
+    return archives, hashes, fixture_artifacts
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -528,15 +699,17 @@ def main(argv: list[str] | None = None) -> None:
     before = source_state(repo, env) if destination else None
     with tempfile.TemporaryDirectory(prefix="forge-wheel-smoke-") as directory:
         temporary = Path(directory).resolve()
-        archives, hashes = build_and_smoke(repo, temporary, uv, env)
+        archives, hashes, fixture_artifacts = build_and_smoke(repo, temporary, uv, env)
         if destination is not None and before is not None:
             if source_state(repo, env) != before:
                 raise RuntimeError(
                     "Source checkout changed during qualification; no archives retained."
                 )
-            retain_archives(destination, archives, hashes, before, env)
-            print(f"Retained tested archives, SHA256SUMS, and smoke-report.json in {destination}")
-    print("Built sdist and wheel; installed import, update, and repository checks passed.")
+            retain_archives(destination, archives, hashes, before, env, fixture_artifacts)
+            print(f"Retained tested archives, skill artifacts, and smoke report in {destination}")
+    print(
+        "Built sdist and wheel; installed import, update, artifact, and repository checks passed."
+    )
 
 
 if __name__ == "__main__":

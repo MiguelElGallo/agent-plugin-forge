@@ -1,0 +1,25 @@
+{
+  "version": "2.4.0",
+  "changes": [
+    {
+      "section": "highlights",
+      "text": "Add portable skill review previews.",
+      "references": ["#17"]
+    },
+    {
+      "section": "changes",
+      "text": "Preserve Unicode paths such as café/報告.md.",
+      "references": ["#18", "PR-42"]
+    },
+    {
+      "section": "changes",
+      "text": "Keep companion skills unchanged during an update.",
+      "references": ["#17"]
+    },
+    {
+      "section": "upgrade_notes",
+      "text": "Review a fresh plan before applying an update.",
+      "references": []
+    }
+  ]
+}
