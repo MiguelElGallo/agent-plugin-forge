@@ -53,6 +53,8 @@ The portable package keeps `mcp.json` and `server.py` unchanged. Both client mar
 
 ## Check it in VS Code
 
+VS Code `1.138.0` currently passes `${PLUGIN_ROOT}` literally in canonical Agent Plugins MCP configurations and does not supply the required plugin environment variables. The portable configuration below is valid, but this client version cannot complete the runtime check; see the [upstream VS Code issue](https://github.com/microsoft/vscode/issues/335006). The direct handshake and `forge check` do not establish VS Code runtime acceptance.
+
 Run **Developer: Reload Window**, then open **Chat: Open Customizations > Plugins**. The `release-notes` plugin should still be enabled. Its `release-status` server should also appear in the MCP server list.
 
 In Copilot Chat, ask:

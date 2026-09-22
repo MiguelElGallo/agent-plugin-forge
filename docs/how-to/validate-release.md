@@ -39,7 +39,8 @@ Before release, record exact versions and test both the installed user journey a
 2. run the packaged bootstrap helper with isolated settings: verify that first use asks for a destination before creating a checkout, save a confirmed repository, reuse it from another project, and check overrides and explicit default replacement; then verify temporary creation, persistent checkout reuse, clean `main`, and exact revision against an isolated Git remote;
 3. install the same package in isolated Copilot CLI and Codex homes;
 4. open a disposable contributor clone in VS Code and run the manual tutorial commands;
-5. register a local portable fixture using [`chat.pluginLocations`](../tutorials/use-in-vscode.md), confirm its skill and MCP server, and call a credential-free tool.
+5. register a local portable fixture using [`chat.pluginLocations`](../tutorials/use-in-vscode.md) and confirm skill discovery. Separately start its MCP server, verify that VS Code expands `${PLUGIN_ROOT}` and `${PLUGIN_DATA}` in the portable configuration and supplies both subprocess environment variables, and call a credential-free tool;
+6. package `release-digest` and `status-chart` as separate disposable plugins with reviewed Forge import plans. Install both from a local marketplace in Codex and load both through VS Code's local plugin workflow. Invoke each packaged skill with its bundled sample input, compare the resulting Markdown, JSON, and SVG files with the packaged expected artifacts, and remove temporary client registrations after the check.
 
 Marketplace command pairs:
 
