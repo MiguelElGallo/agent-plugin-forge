@@ -1,6 +1,6 @@
 [project]
 name = "agent-plugin-forge"
-version = "1.0.1"
+version = "1.1.0"
 description = "Review and publish Agent Skills and MCP servers as validated Agent Plugins 1.0 distributions."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -65,4 +65,11 @@ select = [
 "tests/**/*.py" = ["D101", "D102", "D103", "D104", "D105", "D106", "D107"]
 
 [tool.ty.src]
-include = ["src", "tests", "benchmarks"]
+include = [
+  "src",
+  "tests",
+  "benchmarks",
+  "plugins/agent-plugin-forge/skills/package-agent-skill/scripts/bootstrap_forge.py",
+  "examples",
+  "scripts",
+]

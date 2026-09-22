@@ -26,7 +26,15 @@ from .gitflow import (
     validate_pr_scope,
     validate_skill_branch,
 )
-from .importer import ImportRequest, apply_import, default_import_date, plan_import
+from .importer import (
+    ImportRequest,
+    apply_import,
+    apply_update,
+    default_import_date,
+    plan_import,
+    plan_update,
+)
+from .models import ImportPlan
 from .sources import resolve_skill_source
 from .validator import assert_valid_repository
 
@@ -158,7 +166,7 @@ def _import_request(
     )
 
 
-def _apply_command(request: ImportRequest, plan_sha256: str) -> str:
+def _apply_command(request: ImportRequest, plan_sha256: str, operation: str = "import") -> str:
     """Render a POSIX-shell command preserving the reviewed options and date."""
 
     options = {
@@ -177,7 +185,7 @@ def _apply_command(request: ImportRequest, plan_sha256: str) -> str:
         "imported-at": request.imported_at.isoformat(),
         "expected-sha256": plan_sha256,
     }
-    arguments = ["uv", "run", "forge", "import"]
+    arguments = ["uv", "run", "forge", operation]
     arguments.extend(f"--{name}={value}" for name, value in options.items() if value is not None)
     arguments.extend(f"--transformation={value}" for value in request.transformations)
     arguments.append("--apply")
@@ -242,10 +250,71 @@ def import_command(
     )
     repo = repository_root()
     plan = apply_import(repo, request) if apply else plan_import(repo, request)
+    _print_plan(repo, request, plan, applied=apply, json_output=json_output)
+
+
+@app.command("update", help="Plan or apply a reviewed replacement of one existing skill.")
+def update_command(
+    source: Annotated[Path, typer.Option(help="Reviewed skill, SKILL.md, or source plugin path.")],
+    plugin: Annotated[str, typer.Option(help="Existing destination plugin name.")],
+    version: Annotated[str, typer.Option(help="Strictly higher destination plugin version.")],
+    license_id: Annotated[str, typer.Option("--license", help="Existing skill's SPDX license.")],
+    license_file: Annotated[Path, typer.Option(help="Reviewed source license evidence.")],
+    origin: Annotated[str, typer.Option(help="Canonical source repository URL.")],
+    revision: Annotated[str, typer.Option(help="Immutable source revision.")],
+    source_skill: Annotated[
+        str | None, typer.Option(help="Immediate skill to select from a source plugin.")
+    ] = None,
+    source_subpath: Annotated[str, typer.Option(help="Path within the source repository.")] = ".",
+    imported_at: Annotated[
+        str | None, typer.Option(help="Review date in YYYY-MM-DD form; defaults to today.")
+    ] = None,
+    transformation: Annotated[
+        list[str] | None, typer.Option(help="Reviewed transformation; repeat for multiple entries.")
+    ] = None,
+    expected_sha256: Annotated[
+        str | None, typer.Option(help="Previously reviewed plan SHA-256 required by --apply.")
+    ] = None,
+    apply: Annotated[
+        bool, typer.Option("--apply", help="Apply the exact reviewed update.")
+    ] = False,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Print the complete review plan as JSON only.")
+    ] = False,
+) -> None:
+    """Review an existing skill replacement before applying its exact approved plan."""
+
+    request = _import_request(
+        source=source,
+        source_skill=source_skill,
+        plugin=plugin,
+        category=None,
+        version=version,
+        description=None,
+        author=None,
+        license_id=license_id,
+        license_file=license_file,
+        origin=origin,
+        revision=revision,
+        source_subpath=source_subpath,
+        imported_at=imported_at if imported_at is not None else default_import_date(),
+        expected_sha256=expected_sha256,
+        transformations=transformation,
+    )
+    repo = repository_root()
+    plan = apply_update(repo, request) if apply else plan_update(repo, request)
+    _print_plan(repo, request, plan, applied=apply, json_output=json_output)
+
+
+def _print_plan(
+    repo: Path, request: ImportRequest, plan: ImportPlan, *, applied: bool, json_output: bool
+) -> None:
+    """Render a complete JSON artifact or a readable summary and exact apply command."""
+
     if json_output:
         typer.echo(json.dumps(plan.model_dump(mode="json"), indent=2))
         return
-    action = "Imported" if apply else "Plan"
+    action = ("Updated" if plan.operation == "update" else "Imported") if applied else "Plan"
     typer.echo(
         f"{action}: {diagnostic_value(plan.skill)} -> "
         f"plugins/{diagnostic_value(plan.plugin)}/skills/{diagnostic_value(plan.skill)} "
@@ -253,10 +322,25 @@ def import_command(
         f"content sha256 {plan.content_sha256}, "
         f"review plan sha256 {plan.plan_sha256})"
     )
-    if not apply:
+    if plan.operation == "update":
+        metadata = plan.update_metadata
+        typer.echo(
+            f"Plugin version: {diagnostic_value(metadata['previousVersion'])} -> "
+            f"{diagnostic_value(metadata['version'])}"
+        )
+        for kind, paths in plan.changes.items():
+            typer.echo(f"Skill {kind.replace('_', ' ')} ({len(paths)}):")
+            for path in paths:
+                typer.echo(f"  {diagnostic_value(path)}")
+        typer.echo(f"Rewrite provenance: {diagnostic_value(metadata['provenancePath'])}")
+        typer.echo(
+            f"License evidence ({metadata['licenseAction']}): "
+            f"{diagnostic_value(plan.license_destination)}; shared evidence is preserved."
+        )
+    if not applied:
         typer.echo("No files changed. Review the source and obtain approval for this exact plan.")
         typer.echo(f"After approval, run from {diagnostic_value(repo)} (POSIX shell / Git Bash):")
-        command = _apply_command(request, plan.plan_sha256)
+        command = _apply_command(request, plan.plan_sha256, plan.operation)
         safe_command = diagnostic_value(command)
         if safe_command != command:
             typer.echo(
@@ -274,7 +358,7 @@ def doctor_command(
 ) -> None:
     """Report offline readiness to start a new branch, returning 2 for issues."""
 
-    report = diagnose(repository_root())
+    report = diagnose()
     if json_output:
         typer.echo(json.dumps(report, indent=2))
     else:

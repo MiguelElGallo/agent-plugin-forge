@@ -48,7 +48,7 @@ Treat the user's initial request to publish as permission to prepare a review, n
 
 1. Inspect the source and license without executing scripts or hooks.
 2. Resolve the destination and provenance fields described in [intake.md](intake.md).
-3. From clean current `main`, create the skill branch with `uv run forge branch --plugin NAME --skill NAME`. Use the contributor workflow for existing-skill, MCP, or Forge maintenance.
+3. From clean current `main`, create the skill branch with `uv run forge branch --plugin NAME --skill NAME`. For an existing skill, follow the reviewed `forge update` workflow in [maintain.md](maintain.md) instead of the new-import steps below. MCP, shared plugin changes, and Forge maintenance use their contributor workflows.
 4. Run `uv run forge import` without `--apply`.
 5. Review every source file, executable mode, license byte, destination, and plan field.
 6. Report the checkout, base revision, selected Forge origin, whether it came from the saved default or an override, normalized repository URL printed by the Forge CLI, plugin name and version, compatibility, provenance, and 64-character review-plan hash. Check that the plan's repository matches the selected destination before requesting approval.

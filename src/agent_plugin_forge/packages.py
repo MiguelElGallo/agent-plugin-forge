@@ -113,10 +113,13 @@ def _skill_roots(plugin_root: Path) -> tuple[Path, ...]:
     return direct
 
 
-def load_package(repo: Path, entry: CatalogPlugin) -> PortablePackage:
-    """Load and validate one cataloged portable plugin package."""
+def load_package(
+    repo: Path, entry: CatalogPlugin, *, plugin_root: Path | None = None
+) -> PortablePackage:
+    """Validate a cataloged package at its installed or explicitly staged location."""
 
-    plugin_root = contained_child(repo / "plugins", entry.name, kind="plugin")
+    if plugin_root is None:
+        plugin_root = contained_child(repo / "plugins", entry.name, kind="plugin")
     inspect_regular_tree(plugin_root, required_root_file="plugin.json", tree_label="Plugin")
     if (plugin_root / ".codex-plugin").exists():
         raise ForgeError(

@@ -97,6 +97,49 @@ def test_non_repository(tmp_path: Path) -> None:
     assert check(tmp_path, "checkout")["status"] == "error"
 
 
+@pytest.mark.parametrize("ordinary_git_repo", [False, True])
+def test_missing_forge_checkout_still_reports_prerequisites_without_probes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ordinary_git_repo: bool
+) -> None:
+    if ordinary_git_repo:
+        git(tmp_path, "init", "-b", "main")
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/unused/{name}")
+
+    def unexpected_probe(*args: object, **kwargs: object) -> None:
+        pytest.fail("A missing Forge checkout must not trigger subprocesses")
+
+    monkeypatch.setattr(doctor.subprocess, "run", unexpected_probe)
+    report = doctor.diagnose(tmp_path)
+    assert not report["ready"]
+    assert {item["name"] for item in report["checks"]} == {"python", "git", "uv", "gh", "checkout"}
+    assert (
+        next(item for item in report["checks"] if item["name"] == "checkout")["status"] == "error"
+    )
+
+
+def test_doctor_finds_checkout_from_nested_cwd(
+    ready_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    nested = ready_repo / "catalog"
+    monkeypatch.chdir(nested)
+    assert doctor.diagnose() == doctor.diagnose(ready_repo)
+
+
+def test_inaccessible_checkout_is_reported_without_exception_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def inaccessible(start: Path | None = None) -> Path:
+        raise OSError("secret checkout path")
+
+    monkeypatch.setattr(doctor, "repository_root", inaccessible)
+    report = doctor.diagnose()
+    assert not report["ready"]
+    assert "secret" not in json.dumps(report)
+    assert (
+        next(item for item in report["checks"] if item["name"] == "checkout")["status"] == "error"
+    )
+
+
 def test_git_probes_are_bounded_local_and_suppress_errors(
     ready_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

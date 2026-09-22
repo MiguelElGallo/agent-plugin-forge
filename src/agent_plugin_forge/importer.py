@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import posixpath
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 from contextlib import suppress
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -27,9 +30,11 @@ from .errors import diagnostic_value
 from .filesystem import (
     copy_regular_tree,
     inspect_regular_file,
+    is_linklike,
     snapshot_regular_tree,
 )
-from .models import ImportPlan, ImportRequest
+from .models import Catalog, CatalogPlugin, ImportPlan, ImportRequest, ProvenanceRecord, StdioServer
+from .packages import PortablePackage, load_package
 from .sources import SkillSource, resolve_skill_source
 
 
@@ -151,6 +156,35 @@ def _require_available_output(plugin_root: Path, target: Path, *, label: str) ->
         current = current.parent
 
 
+def _directory_names(root: Path) -> list[str]:
+    """List safe relative directories, including empty MCP working directories."""
+
+    pending = [root]
+    directories: list[str] = []
+    resolved_root = root.resolve()
+    try:
+        while pending:
+            current = pending.pop()
+            if is_linklike(current) or not current.resolve().is_relative_to(resolved_root):
+                raise ForgeError(
+                    "Destination directory changed or escaped its root: "
+                    f"{diagnostic_value(current)}"
+                )
+            for path in current.iterdir():
+                if is_linklike(path):
+                    raise ForgeError(
+                        f"Destination contains a link or junction: {diagnostic_value(path)}"
+                    )
+                if stat.S_ISDIR(path.lstat().st_mode):
+                    directories.append(path.relative_to(root).as_posix())
+                    pending.append(path)
+    except OSError as exc:
+        raise ForgeError(
+            f"Cannot inspect destination directories: {diagnostic_value(exc)}"
+        ) from exc
+    return sorted(directories)
+
+
 def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, Any] | None:
     """Capture the current destination package state for plan binding."""
 
@@ -163,6 +197,7 @@ def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, 
     )
     return {
         "catalogEntry": entry,
+        "directories": _directory_names(plugin_root),
         "files": {
             path.relative_to(plugin_root).as_posix(): hashlib.sha256(snapshot.content).hexdigest()
             for path, snapshot in files.items()
@@ -177,12 +212,206 @@ def _target_state(plugin_root: Path, entry: dict[str, Any] | None) -> dict[str, 
 def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
     """Create a non-mutating, hash-bound plan for one Agent Skill import."""
 
+    return _plan_change(repo, request, update=False)
+
+
+def plan_update(repo: Path, request: ImportRequest) -> ImportPlan:
+    """Plan replacement of one recorded skill while preserving its containing package."""
+
+    return _plan_change(repo, request, update=True)
+
+
+def _canonical_output_path(relative: str, target_state: dict[str, Any]) -> str:
+    """Reuse existing component spelling and reject ambiguous case aliases on any host."""
+
+    paths = set(target_state["files"]) | set(target_state["directories"])
+    parts: list[str] = []
+    for part in PurePosixPath(relative).parts:
+        prefix = "/".join(parts) + "/" if parts else ""
+        children = {
+            path[len(prefix) :].split("/", 1)[0] for path in paths if path.startswith(prefix)
+        }
+        matches = sorted(child for child in children if child.casefold() == part.casefold())
+        if len(matches) > 1:
+            raise ForgeError(
+                "Update license destination has ambiguous case aliases: "
+                f"{diagnostic_value(prefix + part)}"
+            )
+        parts.append(matches[0] if matches else part)
+    return "/".join(parts)
+
+
+def _validate_update_mcp_arguments(
+    package: PortablePackage, skill: str, target_state: dict[str, Any], hashes: dict[str, str]
+) -> None:
+    """Preserve existing explicit MCP argument files and directories in the replaced skill."""
+
+    if package.mcp is None:
+        return
+    prefix = f"skills/{skill}/"
+    directories = {parent.as_posix() for path in hashes for parent in PurePosixPath(path).parents}
+    existing_directories = set(target_state["directories"]) | {"."}
+    for name, server in package.mcp.mcp_servers.items():
+        if not isinstance(server, StdioServer):
+            continue
+        for argument in server.args:
+            match = re.fullmatch(r"(?:--?[^=]+=)?\$\{PLUGIN_ROOT\}/(.+)", argument, flags=re.DOTALL)
+            if match is None:
+                continue
+            suffix = match[1].lstrip("/")
+            parent = "."
+            traversable = True
+            ancestors: list[str] = []
+            for component in suffix.split("/")[:-1]:
+                parent = posixpath.normpath(posixpath.join(parent, component))
+                if parent not in existing_directories:
+                    traversable = False
+                    break
+                ancestors.append(parent)
+            if not traversable:
+                continue
+            path = posixpath.normpath(suffix)
+            if path not in target_state["files"] and path not in existing_directories:
+                continue
+            for referenced in [*ancestors, path]:
+                if not referenced.startswith(prefix):
+                    continue
+                relative = referenced.removeprefix(prefix)
+                removed_file = referenced in target_state["files"] and relative not in hashes
+                removed_directory = (
+                    referenced in existing_directories and relative not in directories
+                )
+                if removed_file or removed_directory:
+                    raise ForgeError(
+                        f"Update would remove or change the type of MCP server {name!r} argument "
+                        f"path: {diagnostic_value(argument)}"
+                    )
+
+
+def _update_license_destination(
+    repo: Path,
+    request: ImportRequest,
+    source: SkillSource,
+    entry: dict[str, Any] | None,
+    target_state: dict[str, Any],
+) -> str:
+    """Validate the installed package and reserve evidence owned by the updated skill."""
+
+    from .validator import _package_provenance_errors
+
+    skill = source.name
+    if entry is None:
+        raise ForgeError(f"Existing plugin {request.plugin} is missing from the catalog")
+    package = load_package(repo, CatalogPlugin.model_validate(entry))
+    errors = _package_provenance_errors(repo, package, {})
+    if errors:
+        raise ForgeError("Cannot update an invalid installed package:\n- " + "\n- ".join(errors))
+    previous = ProvenanceRecord.model_validate(
+        load_json(package.root / "provenance" / f"{skill}.json")
+    )
+    if previous.license != request.license_id:
+        raise ForgeError(
+            "Changing a skill's SPDX license requires a plugin-wide contributor review"
+        )
+    if request.description is not None or request.author is not None:
+        raise ForgeError("Updates preserve shared description and author; omit these options")
+    relative = _canonical_output_path(f"licenses/{skill}/LICENSE", target_state)
+    target = package.root / relative
+    skill_root = (package.root / "skills" / skill).resolve()
+    source_hashes = source.hashes()
+    _validate_update_mcp_arguments(package, skill, target_state, source_hashes)
+    rewritten_metadata = {
+        (package.root / "plugin.json").resolve(),
+        (package.root / "provenance" / f"{skill}.json").resolve(),
+    }
+    for record_path in (package.root / "provenance").glob("*.json"):
+        record = ProvenanceRecord.model_validate(load_json(record_path))
+        if record.skill == skill:
+            continue
+        evidence = (package.root / record.license_evidence.path).resolve()
+        if evidence in rewritten_metadata:
+            raise ForgeError(
+                "Update would rewrite metadata used as another skill's license evidence"
+            )
+        if evidence == target.resolve():
+            raise ForgeError("Update license destination is shared with another skill")
+        if evidence.is_relative_to(skill_root):
+            source_path = evidence.relative_to(skill_root).as_posix()
+            if source_hashes.get(source_path) != record.license_evidence.sha256:
+                raise ForgeError(
+                    "Update would change or remove license evidence shared with another skill"
+                )
+    if target.exists():
+        if (package.root / previous.license_evidence.path).resolve() != target.resolve():
+            raise ForgeError(
+                "Update license destination already exists and is not owned by this skill"
+            )
+    else:
+        _require_available_output(package.root, target, label="Update license destination")
+    return relative
+
+
+def _validate_staged_package(repo: Path, staged_plugin: Path, entry: dict[str, Any] | None) -> None:
+    """Reject broken MCP references, metadata, or provenance before publishing a stage."""
+
+    from .validator import _package_provenance_errors
+
+    package = load_package(repo, CatalogPlugin.model_validate(entry), plugin_root=staged_plugin)
+    errors = _package_provenance_errors(repo, package, {})
+    if errors:
+        raise ForgeError("Staged package is invalid:\n- " + "\n- ".join(errors))
+
+
+def _skill_changes(
+    target_state: dict[str, Any], skill: str, hashes: dict[str, str], modes: dict[str, bool]
+) -> dict[str, list[str]]:
+    """Describe content and executable changes relative to the installed skill snapshot."""
+
+    prefix = f"skills/{skill}/"
+    before = {
+        path.removeprefix(prefix): digest
+        for path, digest in target_state["files"].items()
+        if path.startswith(prefix)
+    }
+    before_modes = target_state["fileModes"]
+    common = before.keys() & hashes.keys()
+    return {
+        "added": sorted(hashes.keys() - before.keys()),
+        "removed": sorted(before.keys() - hashes.keys()),
+        "modified": sorted(path for path in common if before[path] != hashes[path]),
+        "mode_changed": sorted(
+            path for path in common if before_modes[prefix + path] != modes[path]
+        ),
+    }
+
+
+def _read_catalog(repo: Path) -> tuple[dict[str, Any], str]:
+    """Parse and hash the same catalog bytes for approval and publication."""
+
+    path = repo / "catalog" / "plugins.json"
+    try:
+        content = path.read_bytes()
+        catalog = json.loads(content)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ForgeError(f"Cannot read catalog: {diagnostic_value(exc)}") from exc
+    if not isinstance(catalog, dict):
+        raise ForgeError("catalog/plugins.json must contain an object")
+    return catalog, hashlib.sha256(content).hexdigest()
+
+
+def _plan_change(repo: Path, request: ImportRequest, *, update: bool) -> ImportPlan:
+    """Bind a new import or explicit update to its inspected source and destination."""
+
     license_content = _validate_request_metadata(request)
     source = resolve_skill_source(request.source, request.source_skill)
     skill = source.name
     plugin_root = contained_child(repo / "plugins", request.plugin, kind="plugin")
     destination = contained_child(plugin_root / "skills", skill, kind="skill")
-    if destination.exists():
+    if update and not destination.is_dir():
+        raise ForgeError(
+            f"Update requires an existing skill destination: {diagnostic_value(destination)}"
+        )
+    if not update and destination.exists():
         raise ForgeError(f"Destination already exists: {diagnostic_value(destination)}")
     creates_plugin = not plugin_root.exists()
     license_destination = (
@@ -190,7 +419,7 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         if creates_plugin
         else (Path("licenses") / skill / request.license_file.name).as_posix()
     )
-    if not creates_plugin:
+    if not creates_plugin and not update:
         _require_available_output(plugin_root, destination, label="Skill destination")
         _require_available_output(
             plugin_root,
@@ -202,12 +431,17 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
             plugin_root / "provenance" / f"{skill}.json",
             label="Provenance destination",
         )
-    catalog_path = repo / "catalog" / "plugins.json"
-    catalog = load_json(catalog_path)
-    catalog_sha256 = hashlib.sha256(catalog_path.read_bytes()).hexdigest()
+    catalog, catalog_sha256 = _read_catalog(repo)
+    if update:
+        Catalog.model_validate(catalog)
     _reject_duplicate_skill_destination(repo, catalog, request.plugin, skill)
     entry = _catalog_entry(catalog, request.plugin)
     target_state = _target_state(plugin_root, entry)
+    if update:
+        assert target_state is not None
+        license_destination = _update_license_destination(
+            repo, request, source, entry, target_state
+        )
     if creates_plugin:
         missing = [
             name
@@ -233,7 +467,8 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         current = parse_semver(manifest.get("version"), label="Current plugin version")
         proposed = parse_semver(request.version, label="Bundle version")
         if proposed <= current:
-            raise ForgeError("Adding to an existing bundle requires a higher --version")
+            action = "Updating a skill" if update else "Adding to an existing bundle"
+            raise ForgeError(f"{action} requires a higher --version")
     hashes = source.hashes()
     file_modes = source.modes()
     content_sha256 = tree_hash(hashes)
@@ -263,6 +498,21 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         "repositoryUrl": repository_url,
         "catalogSha256": catalog_sha256,
     }
+    changes: dict[str, list[str]] = {}
+    update_metadata: dict[str, Any] = {}
+    if update:
+        assert target_state is not None
+        changes = _skill_changes(target_state, skill, hashes, file_modes)
+        update_metadata = {
+            "previousVersion": manifest["version"],
+            "version": request.version,
+            "manifestPath": "plugin.json",
+            "provenancePath": f"provenance/{skill}.json",
+            "licensePath": license_destination,
+            "licenseAction": "replace" if (plugin_root / license_destination).exists() else "add",
+            "preservesSharedLicense": True,
+        }
+        plan_payload.update(operation="update", changes=changes, updateMetadata=update_metadata)
     plan_sha256 = hashlib.sha256(json_bytes(plan_payload)).hexdigest()
     return ImportPlan(
         plugin=request.plugin,
@@ -280,13 +530,18 @@ def plan_import(repo: Path, request: ImportRequest) -> ImportPlan:
         review_payload=plan_payload,
         files=hashes,
         file_modes=file_modes,
+        operation="update" if update else "import",
+        changes=changes,
+        update_metadata=update_metadata,
     )
 
 
 def _copy_regular_tree(source: Path, destination: Path) -> None:
-    """Copy an existing plugin tree through the shared safe copier."""
+    """Copy an existing plugin's safe files and preserve its empty directories."""
 
     copy_regular_tree(source, destination)
+    for relative in _directory_names(source):
+        (destination / relative).mkdir(parents=True, exist_ok=True)
 
 
 def _copy_reviewed_skill(
@@ -344,6 +599,18 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
     """Apply an unchanged reviewed import plan as a transactional update."""
 
     plan = plan_import(repo, request)
+    return _apply_change(repo, request, plan)
+
+
+def apply_update(repo: Path, request: ImportRequest) -> ImportPlan:
+    """Apply only the exact approved update using the shared staging and rollback path."""
+
+    return _apply_change(repo, request, plan_update(repo, request))
+
+
+def _apply_change(repo: Path, request: ImportRequest, plan: ImportPlan) -> ImportPlan:
+    """Stage an approved skill operation and preserve recovery data if rollback fails."""
+
     if request.expected_sha256 != plan.plan_sha256:
         raise ForgeError(
             "--expected-sha256 must match the reviewed full-plan hash. No import files changed. "
@@ -359,10 +626,9 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
     plugins_root = plugin_root.parent
     plugins_root_existed = plugins_root.exists()
     catalog_path = repo / "catalog" / "plugins.json"
-    catalog_before = catalog_path.read_bytes()
-    if hashlib.sha256(catalog_before).hexdigest() != plan.catalog_sha256:
+    catalog, catalog_sha256 = _read_catalog(repo)
+    if catalog_sha256 != plan.catalog_sha256:
         raise ForgeError("Catalog changed after the reviewed plan")
-    catalog = load_json(catalog_path)
 
     temporary_root = Path(tempfile.mkdtemp(prefix=".forge-import-", dir=repo))
     preserve_recovery = False
@@ -387,6 +653,11 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
             catalog["plugins"] = sorted(catalog["plugins"], key=lambda item: item["name"])
         else:
             _copy_regular_tree(plugin_root, staged_plugin)
+            if (
+                _target_state(staged_plugin, _catalog_entry(catalog, plan.plugin))
+                != plan.review_payload["targetState"]
+            ):
+                raise ForgeError("Destination plugin changed while staging the reviewed plan")
             manifest_path = staged_plugin / "plugin.json"
             manifest = load_json(manifest_path)
             manifest["version"] = request.version
@@ -394,6 +665,8 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         license_relative = Path(plan.license_destination)
 
         staged_skill = staged_plugin / "skills" / plan.skill
+        if plan.operation == "update":
+            shutil.rmtree(staged_skill)
         source = resolve_skill_source(request.source, request.source_skill)
         _copy_reviewed_skill(source, staged_skill, plan.files, plan.file_modes)
         license_content = inspect_regular_file(request.license_file, file_label="License file")
@@ -422,8 +695,20 @@ def apply_import(repo: Path, request: ImportRequest) -> ImportPlan:
         provenance_dir = staged_plugin / "provenance"
         provenance_dir.mkdir(exist_ok=True)
         (provenance_dir / f"{plan.skill}.json").write_bytes(json_bytes(provenance))
+        _validate_staged_package(repo, staged_plugin, _catalog_entry(catalog, plan.plugin))
         staged_catalog = temporary_root / "catalog.json"
         staged_catalog.write_bytes(json_bytes(catalog))
+
+        _, current_catalog_sha256 = _read_catalog(repo)
+        if current_catalog_sha256 != plan.catalog_sha256:
+            raise ForgeError("Catalog changed while staging the reviewed plan")
+        if (
+            _target_state(plugin_root, _catalog_entry(catalog, plan.plugin))
+            != plan.review_payload["targetState"]
+        ):
+            raise ForgeError("Destination plugin changed while staging the reviewed plan")
+        if _forge_repository_url(repo) != plan.repository_url:
+            raise ForgeError("Forge origin changed while staging the reviewed plan")
 
         backup = temporary_root / "backup"
         replaced_existing = plugin_root.exists()

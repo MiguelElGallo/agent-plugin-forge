@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .common import repository_root
 from .errors import ForgeError
 from .importer import _manifest_repository_url
 
@@ -32,7 +33,7 @@ def _git(repo: Path, executable: str, *args: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def diagnose(repo: Path) -> dict[str, Any]:
+def diagnose(start: Path | None = None) -> dict[str, Any]:
     """Report local readiness to start a review; cached refs do not prove freshness."""
 
     checks: list[dict[str, str]] = []
@@ -59,6 +60,16 @@ def diagnose(repo: Path) -> dict[str, Any]:
         if shutil.which("gh")
         else "Optional GitHub CLI is absent; it is needed only for approved GitHub publication.",
     )
+    try:
+        repo = repository_root(start)
+    except (ForgeError, OSError):
+        add(
+            "checkout",
+            "error",
+            "No accessible Agent Plugin Forge checkout was found. "
+            "Run from the intended Forge checkout after preparing it.",
+        )
+        return {"ready": False, "checks": checks}
     if git is None:
         add("checkout", "error", "Checkout checks require Git.")
     elif _git(repo, git, "rev-parse", "--is-inside-work-tree") != "true":

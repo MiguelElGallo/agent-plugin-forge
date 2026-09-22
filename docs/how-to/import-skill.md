@@ -2,6 +2,8 @@
 
 Use this guide when you are operating a Forge checkout directly and the source is already local and reviewed. If Agent Plugin Forge is installed in your client, use [Publish a skill with your agent](publish-skill.md) and let it create the checkout.
 
+For a skill already in the destination plugin, use the reviewed [`forge update` workflow](maintain-team-marketplace.md#maintain-existing-skills).
+
 The importer accepts three shapes:
 
 - a directory with `SKILL.md` at its root;

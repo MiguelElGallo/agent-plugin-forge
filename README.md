@@ -8,13 +8,13 @@
 
 **Documentation:** [Read the Agent Plugin Forge documentation](https://miguelelgallo.github.io/agent-plugin-forge/).
 
-**Version 1.0.1:** import approvals now bind safety-checked file snapshots, and terminal diagnostics escape control characters in untrusted names. Both fixes address low-severity issues. [Refresh and update the Forge](docs/reference/client-installation.md#upgrade-forge-to-101), then generate and review fresh import plans.
+**Version 1.1.0:** review and replace an existing skill with `forge update`, including file removals, executable changes, and refreshed provenance. This version also tightens YAML validation, makes `forge doctor --json` useful outside a checkout, and tests isolated wheel installation in CI. [Refresh and update the Forge](docs/reference/client-installation.md#upgrade-forge-to-110), then generate and review fresh plans.
 
 Install the Forge once, choose and remember your publication repository, then give your coding agent a skill and approve its review plan. Forge packages it as a portable [Agent Plugins 1.0](https://agent-plugins.org/) plugin for Visual Studio Code, GitHub Copilot, and Codex.
 
 You do **not** need to clone this repository to use the Forge.
 
-The CI workflow runs linting, formatting, type checking, Forge validation, and a strict documentation build on Ubuntu. The pytest suite runs on Ubuntu, macOS, and Windows.
+The CI workflow runs linting, formatting, type checking, Forge validation, a strict documentation build, and an isolated wheel installation smoke check on Ubuntu. The pytest suite runs on Ubuntu, macOS, and Windows.
 
 ## 1. Install Agent Plugin Forge
 
@@ -82,7 +82,7 @@ The Forge is not tied to GitHub.com or a fixed local path. Codex, Copilot CLI, a
 
 See [Use a private Forge marketplace](https://miguelelgallo.github.io/agent-plugin-forge/how-to/private-marketplace/) for GitHub Enterprise Server, private repositories, mirrors, and persistent checkout setup.
 
-For a team sharing skills from one central repository, follow [Maintain a team skill marketplace](docs/how-to/maintain-team-marketplace.md). It covers repository ownership, review and merge responsibilities, private-origin selection, installation, and the current contributor workflow for changing an existing skill.
+For a team sharing skills from one central repository, follow [Maintain a team skill marketplace](docs/how-to/maintain-team-marketplace.md). It covers repository ownership, review and merge responsibilities, private-origin selection, installation, and the reviewed `forge update` workflow for changing an existing skill.
 
 ## How the Forge stores packages
 
@@ -91,7 +91,7 @@ For a team sharing skills from one central repository, follow [Maintain a team s
 - `.agents/plugins/marketplace.json` is the generated Codex marketplace.
 - `catalog/plugins.json` holds distribution category and compatibility policy.
 
-The default is one skill per plugin. Bundles are explicit. Skill-only, MCP-only, and mixed packages are supported.
+The default is one skill per plugin. Bundles are explicit. Skill-only, MCP-only, and mixed packages are supported. Existing skills use a reviewed [`forge update` plan](docs/how-to/maintain-team-marketplace.md#maintain-existing-skills), which replaces their files and provenance together with a higher plugin version.
 
 See [Standards and Forge policy](docs/reference/standards.md) for the dated standards review, working-directory support, and client compatibility policy. For setup failures or rejected imports, start with [Troubleshooting](docs/how-to/troubleshoot.md).
 

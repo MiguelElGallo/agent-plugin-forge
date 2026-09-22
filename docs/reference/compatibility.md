@@ -2,7 +2,15 @@
 
 This page records dated client checks. These are qualification observations, not minimum supported versions. Structural conformance is tracked separately in [Standards and Forge policy](standards.md).
 
-## Current release: 1.0.1
+## 1.1.0 validation (2026-09-22)
+
+The project, shipped Forge plugin, marketplace, and lockfile are prepared for `1.1.0`. The minor version adds `forge update` for reviewed existing-skill replacement, stricter YAML frontmatter validation, structured checkout diagnostics, and CI coverage of isolated wheel installation.
+
+The macOS Python 3.12.13 suite passed 478 tests with two platform-specific skips and 93.11% coverage. Ruff, formatting, ty, Forge validation, generation drift, the strict documentation build, and isolated wheel installation checks passed. Regression coverage includes MCP argument files and directories, path traversal, license evidence casing, shared provenance, rollback, YAML mappings, and diagnostics outside a checkout. Peer review findings were corrected and verified.
+
+The PR must pass the required quality and Linux, macOS, Windows, and Python 3.11 jobs before merge. Release qualification still requires the client acceptance and public read-back steps in the [release guide](../how-to/validate-release.md). These local results do not establish a fresh 1.1.0 marketplace installation or client runtime invocation. Historical evidence below retains its original version and scope.
+
+## Previous release: 1.0.1
 
 The project, shipped Forge plugin, marketplace, and lockfile use `1.0.1`. This patch addresses two low-severity issues: import approval snapshot consistency and untrusted terminal diagnostics. The packaged skill instructions and bootstrap helper are unchanged from 1.0.0.
 
@@ -30,7 +38,7 @@ The client commands were checked on 2026-09-12 against local Codex CLI `0.153.4`
 
 The `0.3.0` release passed 257 tests on Python 3.11 and 3.12. A fresh public Copilot CLI `1.0.84-1` installation matched all nine package files from merged revision `2a97c34889aa9fa035b6e1397e799df491cb7562`, and the installed skill completed its check-only workflow without changing files or branches. That evidence is recorded in the [0.3.0 release](https://github.com/MiguelElGallo/agent-plugin-forge/releases/tag/v0.3.0).
 
-Earlier development snapshots also used `0.3.0` and `0.3.1`, as recorded below. After an explicit refresh and update, verify the installed `1.0.1` version and package content.
+Earlier development snapshots also used `0.3.0` and `0.3.1`, as recorded below. After an explicit refresh and update, verify the intended installed version and package content.
 
 ## Evidence recorded on 2026-09-11–12
 
