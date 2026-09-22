@@ -14,6 +14,7 @@ from agent_plugin_forge.filesystem import tree_snapshot
 from agent_plugin_forge.generator import generate
 from agent_plugin_forge.validator import assert_valid_repository
 
+from .test_cli import plain_output
 from .test_importer import apply_reviewed
 
 runner = CliRunner()
@@ -101,9 +102,10 @@ def test_update_printed_command_preserves_quoted_paths_and_review_date(
 
 
 def test_update_requires_explicit_destination_and_version():
-    result = runner.invoke(app, ["update", "--help"])
+    result = runner.invoke(app, ["update", "--help"], color=True)
     assert result.exit_code == 0
-    assert "--plugin" in result.output and "--version" in result.output
+    output = plain_output(result.output)
+    assert "--plugin" in output and "--version" in output
     result = runner.invoke(app, ["update", "--source", "/unused"])
     assert result.exit_code == 2
 

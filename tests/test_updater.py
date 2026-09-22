@@ -322,7 +322,7 @@ def test_update_preserves_edits_made_while_staging(
     def copy_then_edit(source: Path, destination: Path) -> None:
         real_copy(source, destination)
         if drift == "destination":
-            (plugin / "concurrent.txt").write_text("preserve this edit\n", encoding="utf-8")
+            (plugin / "concurrent.txt").write_bytes(b"preserve this edit\n")
         elif drift == "catalog":
             catalog.write_bytes(catalog_before + b"\n")
         else:
@@ -356,7 +356,7 @@ def test_update_rejects_destination_edits_copied_during_staging(
     real_copy = importer_module._copy_regular_tree
 
     def edit_then_copy(source: Path, destination: Path) -> None:
-        (plugin / "concurrent.txt").write_text("preserve this edit\n", encoding="utf-8")
+        (plugin / "concurrent.txt").write_bytes(b"preserve this edit\n")
         real_copy(source, destination)
 
     monkeypatch.setattr(importer_module, "_copy_regular_tree", edit_then_copy)
@@ -422,7 +422,10 @@ def test_update_preserves_actual_license_path_spelling(
     plugin = empty_forge / "plugins" / "sample-skill"
     evidence = plugin / existing_path
     evidence.parent.mkdir(parents=True)
-    (plugin / "LICENSE").rename(evidence)
+    evidence.write_bytes((plugin / "LICENSE").read_bytes())
+    # A lowercase licenses/ directory alone does not satisfy the package license contract.
+    if existing_path.startswith("LICENSES/"):
+        (plugin / "LICENSE").unlink()
     provenance = plugin / "provenance" / "sample-skill.json"
     record = load_json(provenance)
     record["licenseEvidence"]["path"] = existing_path
